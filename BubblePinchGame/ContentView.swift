@@ -58,15 +58,22 @@ struct ContentView: View {
     }
     .onAppear {
       hostAddress = HostAddress.preferred()
-      blowServer.start(onBlowStarted: { strength in
-        game.handleBlow(strength: strength)
-      })
+      blowServer.start(
+        onBlowStarted: { strength in
+          game.handleBlowStarted(strength: strength)
+        },
+        onBlowState: { isBlowing, strength in
+          game.updateBlowState(isBlowing: isBlowing, strength: strength)
+        })
     }
     .onDisappear {
       blowServer.stop()
     }
     .onChange(of: blowServer.listenerPort) { _, _ in
       hostAddress = HostAddress.preferred()
+    }
+    .onChange(of: blowServer.isPeerConnected) { _, connected in
+      game.setCooperative(connected)
     }
     .onChange(of: showsDiagnostics) { _, isShown in
       // Interfaces come and go while the app runs, most notably when a USB

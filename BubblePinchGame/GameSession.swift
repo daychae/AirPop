@@ -101,8 +101,20 @@ final class GameSession: ObservableObject {
     scene.prepareForReady()
   }
 
-  func handleBlow(strength: Double) {
-    scene.spawnBubble(strength: CGFloat(min(max(strength, 0), 1)))
+  /// One blow, one immediate bubble. Everything after that comes from the rate
+  /// the strength implies, not from message arrivals.
+  func handleBlowStarted(strength: Double) {
+    scene.handleBlowStarted(strength: strength)
+  }
+
+  func updateBlowState(isBlowing: Bool, strength: Double) {
+    scene.updateBlowState(isBlowing: isBlowing, strength: strength)
+  }
+
+  /// With a phone attached the blow drives creation; without one the timed
+  /// difficulty curve keeps a solo round playable.
+  func setCooperative(_ cooperative: Bool) {
+    scene.setCooperative(cooperative)
   }
 
   private func connectScene() {

@@ -145,6 +145,13 @@ final class GameScene: SKScene {
   private var isRoundPaused = false
   private var lastSpawnWasBomb = false
 
+  /// Set while an iPhone is supplying input. Automatic spawning stays on
+  /// without one so a round can still be played and tested solo.
+  private var isCooperative = false
+  private var isBlowing = false
+  private var blowStrength: Double = 0
+  private var spawnCredit: Double = 0
+
   override init(size: CGSize) {
     super.init(size: size)
     scaleMode = .resizeFill
@@ -176,6 +183,9 @@ final class GameScene: SKScene {
     removeAllBubbles(animated: false)
     removeEffectNodes()
     onTimeChanged?(Int(GameRules.roundDuration))
+    isBlowing = false
+    blowStrength = 0
+    spawnCredit = 0
   }
 
   func startRound() {
@@ -189,6 +199,9 @@ final class GameScene: SKScene {
     isRoundPaused = false
     isRoundRunning = true
     onTimeChanged?(Int(GameRules.roundDuration))
+    isBlowing = false
+    blowStrength = 0
+    spawnCredit = 0
   }
 
   func setRoundPaused(_ paused: Bool) {
@@ -215,11 +228,35 @@ final class GameScene: SKScene {
     updateBubbleReveal()
   }
 
-  /// Creates an extra bubble using the strength received from the iPhone.
-  func spawnBubble(strength: CGFloat = 0.55) {
+  /// Whether iPhone input drives bubble creation. Turning this on stops the
+  /// timed difficulty curve from adding bubbles of its own, so the two sources
+  /// never compete for the same screen.
+  func setCooperative(_ cooperative: Bool) {
+    guard isCooperative != cooperative else { return }
+    isCooperative = cooperative
+    spawnCredit = 0
+    if !cooperative {
+      isBlowing = false
+      blowStrength = 0
+      nextSpawnTime = elapsed
+    }
+  }
+
+  /// The first bubble of a blow appears immediately. Waiting for the rate
+  /// accumulator would put a visible gap between the player blowing and
+  /// anything happening.
+  func handleBlowStarted(strength: Double) {
     guard isRoundRunning, !isRoundPaused else { return }
-    let difficulty = GameRules.difficulty(at: elapsed)
-    spawnBubble(difficulty: difficulty, strength: strength)
+    isBlowing = true
+    blowStrength = min(max(strength, 0), 1)
+    spawnCredit = 0
+    spawnBlowBubble(strength: blowStrength)
+  }
+
+  func updateBlowState(isBlowing: Bool, strength: Double) {
+    self.isBlowing = isBlowing
+    blowStrength = isBlowing ? min(max(strength, 0), 1) : 0
+    if !isBlowing { spawnCredit = 0 }
   }
 
   override func update(_ currentTime: TimeInterval) {
@@ -243,7 +280,11 @@ final class GameScene: SKScene {
     }
 
     publishRemainingTimeIfNeeded()
-    spawnBubblesIfNeeded()
+    if isCooperative {
+      spawnFromBlow(deltaTime: delta)
+    } else {
+      spawnBubblesIfNeeded()
+    }
     moveBubbles(deltaTime: delta)
     updateBubbleReveal()
   }
@@ -255,6 +296,37 @@ final class GameScene: SKScene {
     onTimeChanged?(remaining)
   }
 
+  /// Rate-driven creation. Credit never banks past a single bubble, so a full
+  /// screen or a paused round drops the requests instead of releasing a burst
+  /// once there is room again.
+  private func spawnFromBlow(deltaTime: TimeInterval) {
+    guard isBlowing, blowStrength > 0 else {
+      spawnCredit = 0
+      return
+    }
+    guard bubbles.count < GameRules.maximumBubbles else {
+      spawnCredit = 0
+      return
+    }
+
+    spawnCredit = min(
+      spawnCredit + BlowSpawnRules.spawnRate(for: blowStrength) * deltaTime,
+      1
+    )
+    guard spawnCredit >= 1 else { return }
+    spawnCredit -= 1
+    spawnBlowBubble(strength: blowStrength)
+  }
+
+  private func spawnBlowBubble(strength: Double) {
+    guard bubbles.count < GameRules.maximumBubbles else { return }
+    spawnBubble(
+      difficulty: GameRules.difficulty(at: elapsed),
+      strength: CGFloat(strength),
+      riseSpeed: CGFloat(BlowSpawnRules.riseSpeed(for: strength))
+    )
+  }
+
   private func spawnBubblesIfNeeded() {
     while elapsed >= nextSpawnTime, bubbles.count < GameRules.maximumBubbles {
       let difficulty = GameRules.difficulty(at: elapsed)
@@ -263,9 +335,13 @@ final class GameScene: SKScene {
     }
   }
 
+  /// `riseSpeed` is a fraction of the screen height per second. When it is nil
+  /// the timed difficulty curve picks the speed, which is what the solo test
+  /// mode uses.
   private func spawnBubble(
     difficulty: Difficulty,
-    strength: CGFloat = 0.55
+    strength: CGFloat = 0.55,
+    riseSpeed: CGFloat? = nil
   ) {
     guard size.width > 1, size.height > 1 else { return }
 
@@ -297,7 +373,8 @@ final class GameScene: SKScene {
       BubbleEntity(
         node: node,
         baseX: x,
-        speed: CGFloat.random(in: difficulty.speedRange) * size.height,
+        speed: (riseSpeed ?? CGFloat.random(in: difficulty.speedRange))
+          * size.height,
         driftAmplitude: CGFloat.random(in: 0.02...0.05) * size.width,
         driftRate: CGFloat.random(in: 0.8...1.35),
         phase: CGFloat.random(in: 0...(2 * .pi))

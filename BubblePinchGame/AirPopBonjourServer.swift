@@ -78,12 +78,22 @@ final class AirPopBonjourServer: ObservableObject {
   /// `isBlowing` and `latestStrength`.
   private var onBlowStarted: ((Double) -> Void)?
 
+  /// Blow state delivered straight to the game, not observed through published
+  /// properties. Routing 20Hz updates through a SwiftUI state change would
+  /// re-evaluate the whole view tree for every reading, and would put the
+  /// bubble rate behind view scheduling for no reason.
+  private var onBlowState: ((Bool, Double) -> Void)?
+
   // MARK: - Lifecycle
 
-  func start(onBlowStarted: @escaping (Double) -> Void) {
+  func start(
+    onBlowStarted: @escaping (Double) -> Void,
+    onBlowState: @escaping (Bool, Double) -> Void
+  ) {
     queue.async { [weak self] in
       guard let self, self.listener == nil else { return }
       self.onBlowStarted = onBlowStarted
+      self.onBlowState = onBlowState
       self.didFallBackToAutomaticPort = false
       self.startListener(onPreferredPort: true)
       self.startStaleTimer()
@@ -370,10 +380,15 @@ final class AirPopBonjourServer: ObservableObject {
       }
     }
 
-    if startsBlow {
-      let value = message.normalizedStrength
-      DispatchQueue.main.async { [weak self] in
-        self?.onBlowStarted?(value)
+    let blowing = isBlowingLocal
+    let liveStrength = message.type == .blowEnd ? 0 : (strength ?? 0)
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      if startsBlow {
+        self.onBlowStarted?(message.normalizedStrength)
+      }
+      if message.type.carriesStrength || message.type == .blowEnd {
+        self.onBlowState?(blowing, liveStrength)
       }
     }
 
@@ -455,6 +470,7 @@ final class AirPopBonjourServer: ObservableObject {
     guard let lastReceivedAtMillis else { return }
     let elapsed = AirPopClock.elapsed(since: lastReceivedAtMillis) / 1000
     guard elapsed >= AirPopLink.staleTimeout else { return }
+    let wasBlowing = isBlowingLocal
     isBlowingLocal = false
 
     publish {
@@ -462,6 +478,11 @@ final class AirPopBonjourServer: ObservableObject {
       $0.isLive = false
       $0.latestStrength = 0
       $0.isBlowing = false
+    }
+
+    guard wasBlowing else { return }
+    DispatchQueue.main.async { [weak self] in
+      self?.onBlowState?(false, 0)
     }
   }
 
