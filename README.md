@@ -89,5 +89,14 @@ USB connection all work without a code change.
 
 Vision extracts hand landmarks on the Mac. Four normalized features are passed
 to the bundled `PinchGestureClassifier.mlmodel`, which classifies each tracked
-hand as `open`, `pinch`, or `background`. Gameplay pinch events require a
-valid Core ML prediction.
+hand as `open`, `pinch`, or `background`.
+
+When the compiled model is missing or a prediction fails, a joint-distance rule
+takes over. It is less accurate, but an exhibition that loses its model file
+should degrade to a playable game rather than to one where no pinch is ever
+recognized. The start screen names whichever path is in use.
+
+Each tracked hand carries its own smoothed pointer, which is held still while
+the fingers close. Pinching moves both fingertips, so an unheld midpoint
+travels several bubble radii during the gesture and pops whatever the hand
+drifted onto.

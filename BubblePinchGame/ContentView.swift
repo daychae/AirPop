@@ -99,8 +99,10 @@ struct ContentView: View {
     .onReceive(tracker.$poses) { poses in
       let viewPoints = Dictionary(
         uniqueKeysWithValues: poses.compactMap { pose in
+          // The stabilized aim, not the raw fingertip midpoint: closing a
+          // pinch moves the midpoint several bubble radii.
           cameraCoordinates.viewPoint(
-            fromCaptureDevicePoint: pose.pinchPoint
+            fromCaptureDevicePoint: pose.pointer
           ).map { (pose.id, $0) }
         })
       game.handleHandPoses(poses, viewPoints: viewPoints)
@@ -235,8 +237,8 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 7) {
           readinessRow("B · 손 인식", isReady: game.hasHands,
             detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
-          readinessRow("B · 핀치 모델", isReady: game.isModelReady,
-            detail: game.isModelReady ? tracker.classifierName : "모델을 불러오지 못했습니다")
+          readinessRow("B · 제스처 인식", isReady: game.isModelReady,
+            detail: tracker.classifierName)
           readinessRow("A · 아이폰 연결", isReady: game.isPeerConnected,
             detail: blowStatus.label)
           readinessRow("A · 마이크 보정", isReady: game.isPeerMicReady,
@@ -427,6 +429,7 @@ struct ContentView: View {
             diagnosticRow("RTT", rttSummary)
             diagnosticRow("GAPS", gapSummary)
             diagnosticRow("STRENGTH", strengthSummary)
+            diagnosticRow("HANDS", handSummary)
           }
           .padding(14)
           .background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
@@ -512,6 +515,15 @@ struct ContentView: View {
       blowServer.isBlowing ? "blowing" : "idle",
       blowServer.isLive ? "live" : "stale"
     )
+  }
+
+  /// Rejected hands are the number Vision found but the confidence gate threw
+  /// away. A steady stream of them at the venue means the threshold, not the
+  /// lighting, is what needs adjusting.
+  private var handSummary: String {
+    let pinching = tracker.poses.filter(\.isPinching).count
+    return "\(tracker.poses.count) tracked · \(pinching) pinching · "
+      + "\(tracker.rejectedHandCount) below threshold · \(tracker.classifierName)"
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {

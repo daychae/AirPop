@@ -10,17 +10,31 @@ final class CameraHandTracker: NSObject, ObservableObject {
 
   let session = AVCaptureSession()
 
-  var isMLReady: Bool { gestureClassifier.isReady }
+  /// The geometry fallback keeps the game playable without the compiled model,
+  /// so readiness no longer gates play on Core ML alone.
+  var isMLReady: Bool { true }
   var classifierName: String {
-    gestureClassifier.isReady ? "Vision + Core ML" : "Core ML model unavailable"
+    gestureClassifier.isReady
+      ? "Vision + Core ML"
+      : "Vision + joint geometry (모델 없음)"
   }
+
+  /// Hands Vision found but the confidence gate rejected. Published so the
+  /// threshold below can be tuned against what the venue actually produces
+  /// instead of by guesswork.
+  @Published private(set) var rejectedHandCount = 0
 
   // Core ML predictions must remain stable for two frames before changing state.
   private let minimumGestureConfidence = 0.65
   private let requiredStableFrameCount = 2
-  private let minimumJointConfidence: VNConfidence = 0.35
+  /// Lowered from 0.35: at exhibition distance and lighting, requiring five
+  /// joints to each clear 0.35 dropped hands that were plainly visible.
+  private let minimumJointConfidence: VNConfidence = 0.30
   private let maximumTrackMatchDistance: CGFloat = 0.25
-  private let maximumMissedFrameCount = 4
+  /// Roughly a quarter second at 30fps. A hand that passes behind the other
+  /// player briefly keeps its id and its pinch state, instead of coming back as
+  /// a new track whose first stable pinch pops a second bubble.
+  private let maximumMissedFrameCount = 8
 
   private let captureQueue = DispatchQueue(label: "bubble.camera.capture")
   private let visionQueue = DispatchQueue(label: "bubble.camera.vision")
@@ -52,7 +66,22 @@ final class CameraHandTracker: NSObject, ObservableObject {
     var candidateGesture: HandGesture
     var candidateFrameCount: Int
     var missedFrameCount: Int
+
+    /// Exponentially smoothed aim. Raw Vision output jitters enough that an
+    /// unsmoothed pointer visibly shakes on a bubble.
+    var smoothedPoint: CGPoint
+    /// Held while the fingers are closing. Pinching moves both fingertips, so
+    /// the midpoint travels several bubble radii during the gesture and would
+    /// otherwise pop whatever the hand drifted onto.
+    var lockedPoint: CGPoint?
+    var previousPinchRatio: CGFloat?
   }
+
+  private let smoothingFactor: CGFloat = 0.38
+  /// Below this the hand is closing enough to be aiming at something.
+  private let pinchIntentRatio: CGFloat = 0.62
+  /// Above this the hand has clearly reopened, so aim is free again.
+  private let pinchReleaseRatio: CGFloat = 0.72
 
   override init() {
     super.init()
@@ -100,7 +129,14 @@ final class CameraHandTracker: NSObject, ObservableObject {
       guard let self, !self.configured else { return }
 
       self.session.beginConfiguration()
-      self.session.sessionPreset = .high
+      // 720p rather than whatever .high resolves to. Vision runs on every
+      // frame alongside SpriteKit and the link, and the extra pixels of a 1080p
+      // feed buy no accuracy at exhibition distance.
+      if self.session.canSetSessionPreset(.hd1280x720) {
+        self.session.sessionPreset = .hd1280x720
+      } else {
+        self.session.sessionPreset = .high
+      }
 
       var shouldStart = false
       defer {
@@ -192,6 +228,11 @@ final class CameraHandTracker: NSObject, ObservableObject {
 
       let detectedHands = (handPoseRequest.results ?? []).compactMap {
         detectedHand(from: $0)
+      }
+
+      let rejected = (handPoseRequest.results ?? []).count - detectedHands.count
+      DispatchQueue.main.async { [weak self] in
+        self?.rejectedHandCount = rejected
       }
 
       guard !detectedHands.isEmpty else {
@@ -314,6 +355,7 @@ final class CameraHandTracker: NSObject, ObservableObject {
       var stableGesture = previousTrack?.stableGesture ?? .open
       var candidateGesture = previousTrack?.candidateGesture ?? .unknown
       var candidateFrameCount = previousTrack?.candidateFrameCount ?? 0
+      let previousSmoothed = previousTrack?.smoothedPoint
 
       let prediction = detection.prediction
       if prediction.confidence >= minimumGestureConfidence,
@@ -340,13 +382,33 @@ final class CameraHandTracker: NSObject, ObservableObject {
       }
 
       let isPinching = stableGesture == .pinch
+
+      let smoothed = smooth(detection.pinchPoint, from: previousSmoothed)
+      var lockedPoint = previousTrack?.lockedPoint
+      let previousRatio = previousTrack?.previousPinchRatio
+
+      // Lock on the position the hand held *before* the fingers started
+      // closing, not on where they end up once closed.
+      let crossedIntent =
+        detection.pinchRatio < pinchIntentRatio
+        && (previousRatio ?? detection.pinchRatio) >= pinchIntentRatio
+      if lockedPoint == nil, crossedIntent || isPinching {
+        lockedPoint = previousSmoothed ?? smoothed
+      }
+      if detection.pinchRatio > pinchReleaseRatio {
+        lockedPoint = nil
+      }
+
       handTracks[trackID] = HandTrack(
         id: trackID,
         pinchPoint: detection.pinchPoint,
         stableGesture: stableGesture,
         candidateGesture: candidateGesture,
         candidateFrameCount: candidateFrameCount,
-        missedFrameCount: 0
+        missedFrameCount: 0,
+        smoothedPoint: smoothed,
+        lockedPoint: lockedPoint,
+        previousPinchRatio: detection.pinchRatio
       )
 
       return HandPose(
@@ -354,6 +416,7 @@ final class CameraHandTracker: NSObject, ObservableObject {
         thumbTip: detection.thumbTip,
         indexTip: detection.indexTip,
         pinchPoint: detection.pinchPoint,
+        pointer: lockedPoint ?? smoothed,
         pinchRatio: detection.pinchRatio,
         isPinching: isPinching,
         pinchBegan: isPinching && !wasPinching
@@ -383,6 +446,14 @@ final class CameraHandTracker: NSObject, ObservableObject {
     }
 
     return "\(handLabel) detected"
+  }
+
+  private func smooth(_ point: CGPoint, from previous: CGPoint?) -> CGPoint {
+    guard let previous else { return point }
+    return CGPoint(
+      x: previous.x + (point.x - previous.x) * smoothingFactor,
+      y: previous.y + (point.y - previous.y) * smoothingFactor
+    )
   }
 
   private func captureDevicePoint(_ point: CGPoint) -> CGPoint {

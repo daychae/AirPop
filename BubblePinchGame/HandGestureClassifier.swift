@@ -14,9 +14,15 @@ struct HandMetrics {
   let fingertipConfidence: Double
 }
 
+enum GestureSource: String {
+  case coreML = "Core ML"
+  case geometry = "joint geometry"
+}
+
 struct GesturePrediction {
   let gesture: HandGesture
   let confidence: Double
+  let source: GestureSource
 }
 
 final class HandGestureClassifier {
@@ -51,7 +57,7 @@ final class HandGestureClassifier {
 
   func predict(metrics: HandMetrics) -> GesturePrediction {
     guard let model else {
-      return GesturePrediction(gesture: .unknown, confidence: 0)
+      return geometryPrediction(metrics: metrics)
     }
 
     do {
@@ -69,7 +75,7 @@ final class HandGestureClassifier {
         let labelName = model.modelDescription.predictedFeatureName,
         let label = output.featureValue(for: labelName)?.stringValue
       else {
-        return GesturePrediction(gesture: .unknown, confidence: 0)
+        return geometryPrediction(metrics: metrics)
       }
 
       let gesture: HandGesture
@@ -88,11 +94,44 @@ final class HandGestureClassifier {
           for: label,
           output: output,
           probabilityName: model.modelDescription.predictedProbabilitiesName
-        )
+        ),
+        source: .coreML
       )
     } catch {
-      return GesturePrediction(gesture: .unknown, confidence: 0)
+      return geometryPrediction(metrics: metrics)
     }
+  }
+
+  /// Distance-rule fallback for when the compiled model is missing or a
+  /// prediction fails. It is less accurate than the classifier, but an
+  /// exhibition that loses its model file should degrade to a playable game
+  /// rather than to a game where no pinch is ever recognized.
+  private func geometryPrediction(metrics: HandMetrics) -> GesturePrediction {
+    let gesture: HandGesture
+    let confidence: Double
+
+    if metrics.pinchRatio < 0.34,
+      metrics.indexExtension > 0.72,
+      metrics.fingertipConfidence > 0.3
+    {
+      gesture = .pinch
+      confidence = min(1, (0.34 - metrics.pinchRatio) / 0.34 + 0.55)
+    } else if metrics.pinchRatio > 0.48,
+      metrics.indexExtension > 0.70,
+      metrics.fingertipConfidence > 0.3
+    {
+      gesture = .open
+      confidence = min(1, (metrics.pinchRatio - 0.48) + 0.60)
+    } else {
+      gesture = .unknown
+      confidence = 0.4
+    }
+
+    return GesturePrediction(
+      gesture: gesture,
+      confidence: confidence,
+      source: .geometry
+    )
   }
 
   private func probability(
