@@ -32,7 +32,7 @@ final class AirPopBonjourServer: ObservableObject {
   @Published private(set) var sequenceGapCount = 0
   @Published private(set) var peerDroppedCount = 0
   @Published private(set) var peerReportedRTT: Double?
-  @Published private(set) var intervalStats = AirPopIntervalStats.empty
+  @Published private(set) var intervalStats = AirPopSampleStats.empty
 
   /// Monotonic reading of the most recent accepted message. Published only when
   /// a message arrives, so the diagnostics view can animate elapsed time with a
@@ -62,7 +62,7 @@ final class AirPopBonjourServer: ObservableObject {
   private var activeSessionID: String?
   private var lastSequence = -1
   private var lastReceivedAtMillis: Double?
-  private var intervals = AirPopIntervalTracker()
+  private var intervals = AirPopSampleTracker()
   private var staleTimer: DispatchSourceTimer?
   private var didFallBackToAutomaticPort = false
   private var onBlow: ((Double) -> Void)?
