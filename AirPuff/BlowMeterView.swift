@@ -202,6 +202,7 @@ struct BlowMeterView: View {
         measurementCell(title: "전송", value: "\(connection.sentCount)", unit: "회")
         measurementCell(title: "응답", value: "\(connection.ackCount)", unit: "회")
         measurementCell(title: "폐기", value: "\(connection.droppedCount)", unit: "개")
+        measurementCell(title: "불기", value: "\(connection.blowEventCount)", unit: "회")
       }
 
       HStack(spacing: 10) {

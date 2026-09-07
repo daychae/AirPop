@@ -121,6 +121,7 @@ final class GameSession: ObservableObject {
           return
         }
         self.phase = .countdown(value)
+        AudioManager.shared.play(GameSound.countdownTick)
         try? await Task.sleep(for: .seconds(1))
       }
 
@@ -132,6 +133,7 @@ final class GameSession: ObservableObject {
       self.resetScore()
       self.phase = .playing
       self.scene.startRound()
+      AudioManager.shared.play(GameSound.roundStart)
     }
   }
 
@@ -200,6 +202,7 @@ final class GameSession: ObservableObject {
   private func finishRound() {
     guard phase == .playing || phase.isPaused else { return }
     phase = .result
+    AudioManager.shared.play(GameSound.roundOver)
     isNewHighScore = score > highScore
     if isNewHighScore {
       highScore = score

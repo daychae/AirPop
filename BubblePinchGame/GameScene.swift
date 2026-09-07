@@ -457,6 +457,7 @@ final class GameScene: SKScene {
     if bubble.node.isBomb {
       bubble.node.revealBomb()
       showBombEffect(at: effectPosition, radius: bubble.node.bubbleRadius)
+      AudioManager.shared.play(GameSound.bomb)
       NSHapticFeedbackManager.defaultPerformer.perform(
         .generic,
         performanceTime: .now
@@ -464,6 +465,7 @@ final class GameScene: SKScene {
       onBombTriggered?()
     } else {
       showPopEffect(at: effectPosition, radius: bubble.node.bubbleRadius)
+      AudioManager.shared.play(GameSound.pops.randomElement() ?? GameSound.pops[0])
       onNormalPopped?()
     }
 

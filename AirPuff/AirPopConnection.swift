@@ -72,7 +72,9 @@ final class AirPopConnection: ObservableObject {
     case .connecting(let name):
       "\(name)에 연결하고 있습니다."
     case .connected(let name):
-      "\(name) · 전송 \(sentCount)회"
+      // The session id is what matches this phone to the line on the Mac's
+      // diagnostics panel when both are open during setup.
+      "\(name) · \(sessionShortID ?? "?") · 전송 \(sentCount)회"
     case .unresponsive(let name):
       "\(name)에 연결은 되어 있으나 응답이 없습니다. Mac 앱을 확인해 주세요."
     case .failed(let message):

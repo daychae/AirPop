@@ -232,7 +232,10 @@ final class CameraHandTracker: NSObject, ObservableObject {
 
       let rejected = (handPoseRequest.results ?? []).count - detectedHands.count
       DispatchQueue.main.async { [weak self] in
-        self?.rejectedHandCount = rejected
+        // Assigning unconditionally would publish on every frame and re-run the
+        // whole view body for a number that is almost always zero.
+        guard let self, self.rejectedHandCount != rejected else { return }
+        self.rejectedHandCount = rejected
       }
 
       guard !detectedHands.isEmpty else {
