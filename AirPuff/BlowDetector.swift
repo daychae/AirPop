@@ -24,6 +24,11 @@ final class BlowDetector: ObservableObject {
   @Published private(set) var blowCount = 0
   @Published private(set) var completedBlowSequence = 0
   @Published private(set) var isBlowing = false
+
+  /// Calibrated and listening. The Mac requires this before a round can start,
+  /// because an uncalibrated phone reports strengths the venue's noise floor
+  /// makes meaningless.
+  @Published private(set) var isReadyForPlay = false
   @Published var thresholdMargin = 15.0
   @Published var statusMessage = "마이크를 준비하고 있습니다."
 
@@ -120,6 +125,7 @@ final class BlowDetector: ObservableObject {
       try audioEngine.start()
       isMonitoring = true
       beginCalibration()
+      updateReadiness()
     } catch {
       removeInputTapIfNeeded()
       deactivateAudioSession()
@@ -140,6 +146,7 @@ final class BlowDetector: ObservableObject {
     strength = 0
     candidateStartedAt = nil
     statusMessage = "측정을 정지했습니다."
+    updateReadiness()
   }
 
   func recalibrate() {
@@ -154,6 +161,12 @@ final class BlowDetector: ObservableObject {
     blowCount = 0
     lastBlowStrength = 0
     peakDecibels = -100
+  }
+
+  private func updateReadiness() {
+    let ready = isMonitoring && !isCalibrating && permissionState == .granted
+    guard isReadyForPlay != ready else { return }
+    isReadyForPlay = ready
   }
 
   private func refreshPermissionState() {
@@ -183,6 +196,7 @@ final class BlowDetector: ObservableObject {
     lastAboveThresholdAt = nil
     lastUpdateSentAt = nil
     statusMessage = "1.5초 동안 조용히 주변 소음을 측정합니다."
+    updateReadiness()
   }
 
   private func process(decibels rawDecibels: Double, at now: Date) {
@@ -217,6 +231,7 @@ final class BlowDetector: ObservableObject {
     isCalibrating = false
     calibrationProgress = 1
     statusMessage = "준비 완료. 아래쪽 마이크를 향해 ‘후’ 불어 보세요."
+    updateReadiness()
   }
 
   private func processBlowCandidate(decibels: Double, at now: Date) {

@@ -30,6 +30,11 @@ final class AirPopConnection: ObservableObject {
   @Published private(set) var sessionShortID: String?
   @Published private(set) var manualTarget: String?
 
+  /// Round state as reported by the Mac. The Mac owns it; the phone mirrors it
+  /// so both players see the same thing.
+  @Published private(set) var remotePhase: AirPopGamePhase?
+  @Published private(set) var remoteCountdown: Int?
+
   /// Counts blows, not messages, so it stays comparable to the old single-shot
   /// behavior now that one blow produces a stream.
   @Published private(set) var blowEventCount = 0
@@ -92,6 +97,7 @@ final class AirPopConnection: ObservableObject {
     let type: AirPopMessageType
     let strength: Double?
     let forceAck: Bool
+    var micReady: Bool? = nil
 
     var isCritical: Bool { type.isCritical }
   }
@@ -118,6 +124,9 @@ final class AirPopConnection: ObservableObject {
   private var watchdogTimer: DispatchSourceTimer?
   private var reconnectTimer: DispatchSourceTimer?
   private var diagnosticsMode = false
+  /// Resent after every reconnect: the Mac clears its copy when a session ends,
+  /// and a phone that stays silent would leave the round unstartable.
+  private var lastMicReady = false
 
   /// A requested ack that never arrives within this window means the peer app
   /// is no longer reading, even though TCP still reports a healthy connection.
@@ -160,6 +169,8 @@ final class AirPopConnection: ObservableObject {
         $0.state = .stopped
         $0.isStreaming = false
         $0.sessionShortID = nil
+        $0.remotePhase = nil
+        $0.remoteCountdown = nil
       }
     }
   }
@@ -208,6 +219,18 @@ final class AirPopConnection: ObservableObject {
         strength: min(max(strength, 0), 1),
         forceAck: false
       ))
+  }
+
+  /// Microphone readiness. One of the four conditions the Mac requires before
+  /// a round can start.
+  func sendStatus(micReady: Bool) {
+    queue.async { [weak self] in
+      guard let self else { return }
+      self.lastMicReady = micReady
+      self.enqueue(
+        Draft(type: .status, strength: nil, forceAck: false, micReady: micReady)
+      )
+    }
   }
 
   /// One diagnostic message that does not involve the microphone.
@@ -314,7 +337,8 @@ final class AirPopConnection: ObservableObject {
       wantsAck: wantsAck,
       strength: draft.strength,
       lastRTTMillis: latestRTT,
-      droppedCount: localDroppedCount
+      droppedCount: localDroppedCount,
+      micReady: draft.micReady
     )
 
     guard let data = try? AirPopWire.encode(message) else { return }
@@ -485,9 +509,18 @@ final class AirPopConnection: ObservableObject {
     publish {
       $0.state = .connected(name)
       $0.sessionShortID = shortID
+      $0.remotePhase = nil
+      $0.remoteCountdown = nil
     }
 
     enqueue(Draft(type: .hello, strength: nil, forceAck: true))
+    enqueue(
+      Draft(
+        type: .status,
+        strength: nil,
+        forceAck: false,
+        micReady: lastMicReady
+      ))
   }
 
   private func resetSendState() {
@@ -543,6 +576,14 @@ final class AirPopConnection: ObservableObject {
         if case .unresponsive(let name) = $0.state {
           $0.state = .connected(name)
         }
+      }
+
+    case .gameState:
+      let phase = message.gamePhase
+      let countdown = message.countdownValue
+      publish {
+        $0.remotePhase = phase
+        $0.remoteCountdown = countdown
       }
 
     default:

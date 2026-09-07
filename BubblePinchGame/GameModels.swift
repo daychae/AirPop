@@ -6,15 +6,41 @@ enum GamePhase: Equatable {
     case countdown(Int)
     case playing
     case pausedHandLost
+    /// The phone dropped out. Kept separate from a lost hand because the two
+    /// need different instructions on screen.
+    case pausedPeerLost
     case result
 
     var showsHUD: Bool {
         switch self {
-        case .playing, .pausedHandLost:
+        case .playing, .pausedHandLost, .pausedPeerLost:
             return true
         case .ready, .countdown, .result:
             return false
         }
+    }
+
+    var isPaused: Bool {
+        switch self {
+        case .pausedHandLost, .pausedPeerLost: return true
+        default: return false
+        }
+    }
+
+    var wire: AirPopGamePhase {
+        switch self {
+        case .ready: return .ready
+        case .countdown: return .countdown
+        case .playing: return .playing
+        case .pausedHandLost: return .pausedHandsLost
+        case .pausedPeerLost: return .pausedPeerLost
+        case .result: return .result
+        }
+    }
+
+    var countdownValue: Int? {
+        if case .countdown(let value) = self { return value }
+        return nil
     }
 }
 

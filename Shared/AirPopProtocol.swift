@@ -23,13 +23,18 @@ enum AirPopMessageType: String, Codable {
   /// iPhone → Mac. Blowing stopped.
   case blowEnd
 
+  /// iPhone → Mac. Readiness that is not part of the blow stream.
+  case status
+  /// Mac → iPhone. The Mac owns round state; the phone mirrors it.
+  case gameState
+
   /// State transitions carry meaning in their order and must never be dropped
   /// to make room for a newer message. Only a strength reading is disposable:
   /// the next one supersedes it 50ms later.
   var isCritical: Bool {
     switch self {
-    case .hello, .blowStart, .blowEnd, .blow: return true
-    case .ping, .blowUpdate, .ack, .helloAck: return false
+    case .hello, .blowStart, .blowEnd, .blow, .status: return true
+    case .ping, .blowUpdate, .ack, .helloAck, .gameState: return false
     }
   }
 
@@ -39,6 +44,21 @@ enum AirPopMessageType: String, Codable {
     default: return false
     }
   }
+}
+
+/// Round state as it travels between the two apps.
+///
+/// Deliberately separate from the Mac's own `GamePhase`: the phone shows a
+/// different screen for each of these and has no use for the scene-level
+/// details, and a wire format that changes whenever the game's internal
+/// enumeration changes would break the pairing at the worst moment.
+enum AirPopGamePhase: String, Codable {
+  case ready
+  case countdown
+  case playing
+  case pausedHandsLost
+  case pausedPeerLost
+  case result
 }
 
 // MARK: - Envelope
@@ -79,6 +99,13 @@ struct AirPopMessage: Codable, Equatable {
   /// `sentAtMillis` copied back verbatim, on `ack`.
   var echoSentAtMillis: Double?
 
+  /// Whether the phone has finished calibrating its microphone, on `status`.
+  var micReady: Bool?
+
+  /// Round state, on `gameState`.
+  var gamePhase: AirPopGamePhase?
+  var countdownValue: Int?
+
   init(
     v: Int = AirPopLink.protocolVersion,
     type: AirPopMessageType,
@@ -90,7 +117,10 @@ struct AirPopMessage: Codable, Equatable {
     lastRTTMillis: Double? = nil,
     droppedCount: Int? = nil,
     peerName: String? = nil,
-    echoSentAtMillis: Double? = nil
+    echoSentAtMillis: Double? = nil,
+    micReady: Bool? = nil,
+    gamePhase: AirPopGamePhase? = nil,
+    countdownValue: Int? = nil
   ) {
     self.v = v
     self.type = type
@@ -103,6 +133,9 @@ struct AirPopMessage: Codable, Equatable {
     self.droppedCount = droppedCount
     self.peerName = peerName
     self.echoSentAtMillis = echoSentAtMillis
+    self.micReady = micReady
+    self.gamePhase = gamePhase
+    self.countdownValue = countdownValue
   }
 
   // Decoding is hand written so a missing optional-with-default field (notably
@@ -123,6 +156,11 @@ struct AirPopMessage: Codable, Equatable {
     peerName = try container.decodeIfPresent(String.self, forKey: .peerName)
     echoSentAtMillis =
       try container.decodeIfPresent(Double.self, forKey: .echoSentAtMillis)
+    micReady = try container.decodeIfPresent(Bool.self, forKey: .micReady)
+    gamePhase = try container.decodeIfPresent(
+      AirPopGamePhase.self, forKey: .gamePhase)
+    countdownValue = try container.decodeIfPresent(
+      Int.self, forKey: .countdownValue)
   }
 
   /// Strength clamped to the range the game expects.

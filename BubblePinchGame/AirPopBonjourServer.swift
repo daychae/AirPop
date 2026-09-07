@@ -43,6 +43,10 @@ final class AirPopBonjourServer: ObservableObject {
   @Published private(set) var isLive = false
   @Published private(set) var latestStrength = 0.0
 
+  /// Whether the phone reports a calibrated microphone. One of the four
+  /// conditions a round needs before it can start.
+  @Published private(set) var isPeerMicReady = false
+
   /// True between blowStart and blowEnd. Phase 3 drives bubble spawn rate and
   /// rise speed from this pair rather than from message arrivals.
   @Published private(set) var isBlowing = false
@@ -70,6 +74,9 @@ final class AirPopBonjourServer: ObservableObject {
   /// Queue-side mirror of `isBlowing`. The published copy lives on the main
   /// thread and cannot be read from here to make a decision.
   private var isBlowingLocal = false
+  /// Separate from the inbound sequence: downstream messages are not acked and
+  /// must not disturb the phone's gap accounting.
+  private var downstreamSequence = 0
   private var staleTimer: DispatchSourceTimer?
   private var didFallBackToAutomaticPort = false
   /// Fired once per blow, not once per message. The live stream arrives at
@@ -129,6 +136,7 @@ final class AirPopBonjourServer: ObservableObject {
         $0.isLive = false
         $0.latestStrength = 0
         $0.isBlowing = false
+        $0.isPeerMicReady = false
         $0.lastMessageAtMillis = nil
         $0.intervalStats = .empty
       }
@@ -248,6 +256,7 @@ final class AirPopBonjourServer: ObservableObject {
       $0.isLive = false
       $0.latestStrength = 0
       $0.isBlowing = false
+      $0.isPeerMicReady = false
       $0.lastMessageAtMillis = nil
       $0.intervalStats = .empty
     }
@@ -380,6 +389,11 @@ final class AirPopBonjourServer: ObservableObject {
       }
     }
 
+    if message.type == .status {
+      let ready = message.micReady ?? false
+      publish { $0.isPeerMicReady = ready }
+    }
+
     let blowing = isBlowingLocal
     let liveStrength = message.type == .blowEnd ? 0 : (strength ?? 0)
     DispatchQueue.main.async { [weak self] in
@@ -434,6 +448,7 @@ final class AirPopBonjourServer: ObservableObject {
       $0.isLive = true
       $0.latestStrength = 0
       $0.isBlowing = false
+      $0.isPeerMicReady = false
     }
     publishPath(for: connection)
 
@@ -447,6 +462,31 @@ final class AirPopBonjourServer: ObservableObject {
       ),
       on: connection
     )
+  }
+
+  /// Pushes round state to the phone. The Mac owns the round, so the phone
+  /// never has to guess what the other player's screen is showing.
+  func sendGameState(_ phase: AirPopGamePhase, countdownValue: Int?) {
+    queue.async { [weak self] in
+      guard
+        let self,
+        let connection = self.activeConnection,
+        let sessionID = self.activeSessionID
+      else {
+        return
+      }
+      self.downstreamSequence += 1
+      self.send(
+        AirPopMessage(
+          type: .gameState,
+          sessionID: sessionID,
+          sequence: self.downstreamSequence,
+          gamePhase: phase,
+          countdownValue: countdownValue
+        ),
+        on: connection
+      )
+    }
   }
 
   private func send(_ message: AirPopMessage, on connection: NWConnection) {

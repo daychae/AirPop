@@ -58,6 +58,7 @@ struct ContentView: View {
     }
     .onAppear {
       hostAddress = HostAddress.preferred()
+      game.setModelReady(tracker.isMLReady)
       blowServer.start(
         onBlowStarted: { strength in
           game.handleBlowStarted(strength: strength)
@@ -73,7 +74,22 @@ struct ContentView: View {
       hostAddress = HostAddress.preferred()
     }
     .onChange(of: blowServer.isPeerConnected) { _, connected in
-      game.setCooperative(connected)
+      game.setPeerConnected(connected)
+      // A phone joining mid-round would otherwise show nothing until the next
+      // phase change, which on a 30 second round can be most of it.
+      if connected {
+        blowServer.sendGameState(
+          game.phase.wire,
+          countdownValue: game.phase.countdownValue
+        )
+      }
+    }
+    .onChange(of: blowServer.isPeerMicReady) { _, ready in
+      game.setPeerMicReady(ready)
+    }
+    .onChange(of: game.phase) { _, phase in
+      // The Mac owns round state, so the phone is told rather than asked.
+      blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
     }
     .onChange(of: showsDiagnostics) { _, isShown in
       // Interfaces come and go while the app runs, most notably when a USB
@@ -165,6 +181,20 @@ struct ContentView: View {
           }
           .padding(12)
         }
+      case .pausedPeerLost:
+        GlassPanel {
+          VStack(spacing: 14) {
+            Image(systemName: "iphone.slash")
+              .font(.system(size: 44))
+              .foregroundStyle(.orange)
+            Text("아이폰 연결이 끊겼습니다")
+              .font(.title.bold())
+            Text("A 플레이어의 AirPuff 앱을 확인해 주세요.\n다시 연결되면 자동으로 계속됩니다.")
+              .multilineTextAlignment(.center)
+              .foregroundStyle(.secondary)
+          }
+          .padding(12)
+        }
       case .result:
         resultPanel
       }
@@ -187,26 +217,34 @@ struct ContentView: View {
         Text("바람으로 만들고, 손으로 터뜨리는 버블 게임")
           .font(.title3.weight(.semibold))
 
-        Text("엄지와 검지를 붙여 버블을 터뜨리세요\n폭탄은 -3점 · 제한 시간은 30초")
-          .multilineTextAlignment(.center)
-          .foregroundStyle(.secondary)
-
-        HStack(spacing: 10) {
-          Circle()
-            .fill(game.hasHands ? Color.green : Color.orange)
-            .frame(width: 10, height: 10)
-          Text(
-            game.hasHands
-              ? "\(game.handCount)개의 손 인식 완료"
-              : "카메라에 한 손 이상을 보여주세요"
+        HStack(spacing: 22) {
+          roleBadge(
+            "A",
+            title: "아이폰으로 만들기",
+            detail: "마이크에 후 불기",
+            tint: .orange
           )
-          .font(.headline)
+          roleBadge(
+            "B",
+            title: "손으로 터뜨리기",
+            detail: "엄지와 검지 붙이기",
+            tint: .cyan
+          )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.30), in: Capsule())
 
-        blowStatusPill
+        VStack(alignment: .leading, spacing: 7) {
+          readinessRow("B · 손 인식", isReady: game.hasHands,
+            detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
+          readinessRow("B · 핀치 모델", isReady: game.isModelReady,
+            detail: game.isModelReady ? tracker.classifierName : "모델을 불러오지 못했습니다")
+          readinessRow("A · 아이폰 연결", isReady: game.isPeerConnected,
+            detail: blowStatus.label)
+          readinessRow("A · 마이크 보정", isReady: game.isPeerMicReady,
+            detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
 
         if let hostAddress, blowServer.listenerPort > 0 {
           Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
@@ -215,24 +253,56 @@ struct ContentView: View {
             .textSelection(.enabled)
         }
 
-        Text(
-          tracker.isMLReady
-            ? "입력 엔진: \(tracker.classifierName) · 최대 4손"
-            : tracker.classifierName
-        )
-        .font(.caption)
-        .foregroundStyle(tracker.isMLReady ? .white.opacity(0.64) : .red)
-
         Button("게임 시작") {
           game.beginCountdown()
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .tint(.cyan)
-        .disabled(!game.hasHands || !tracker.isMLReady)
+        .disabled(!game.canStart)
         .keyboardShortcut(.space, modifiers: [])
       }
       .padding(.horizontal, 20)
+    }
+  }
+
+  private func roleBadge(
+    _ letter: String,
+    title: String,
+    detail: String,
+    tint: Color
+  ) -> some View {
+    VStack(spacing: 5) {
+      Text(letter)
+        .font(.system(size: 26, weight: .black, design: .rounded))
+        .foregroundStyle(tint)
+        .frame(width: 46, height: 46)
+        .background(tint.opacity(0.16), in: Circle())
+      Text(title)
+        .font(.subheadline.bold())
+      Text(detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .frame(width: 150)
+  }
+
+  private func readinessRow(
+    _ title: String,
+    isReady: Bool,
+    detail: String
+  ) -> some View {
+    HStack(spacing: 10) {
+      Image(systemName: isReady ? "checkmark.circle.fill" : "circle")
+        .foregroundStyle(isReady ? .green : .white.opacity(0.35))
+      Text(title)
+        .font(.subheadline.weight(.semibold))
+        .frame(width: 132, alignment: .leading)
+      Text(detail)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.6))
+        .lineLimit(1)
+      Spacer(minLength: 0)
     }
   }
 
@@ -392,7 +462,8 @@ struct ContentView: View {
     case .connected:
       let name = blowServer.peerName ?? "peer"
       let session = blowServer.sessionShortID ?? "??????"
-      return "\(blowServer.isLive ? "live" : "idle") · \(name) (\(session))"
+      let mic = blowServer.isPeerMicReady ? "mic ready" : "mic not ready"
+      return "\(blowServer.isLive ? "live" : "idle") · \(name) (\(session)) · \(mic)"
     case .protocolMismatch(let version):
       return "PROTOCOL MISMATCH · peer v\(version), self v\(AirPopLink.protocolVersion)"
     case .failed(let message): return "failed · \(message)"

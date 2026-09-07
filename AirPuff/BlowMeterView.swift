@@ -14,6 +14,7 @@ struct BlowMeterView: View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 18) {
+          roleCard
           connectionCard
           diagnosticsCard
           statusCard
@@ -38,6 +39,13 @@ struct BlowMeterView: View {
       connection.start()
       detector.requestPermissionAndStart()
     }
+    .onChange(of: detector.isReadyForPlay) { _, ready in
+      connection.sendStatus(micReady: ready)
+    }
+    .onChange(of: connection.isConnected) { _, connected in
+      // The Mac forgets readiness when a session ends, so re-announce it.
+      if connected { connection.sendStatus(micReady: detector.isReadyForPlay) }
+    }
     .onDisappear {
       connection.stop()
       detector.stopMonitoring()
@@ -50,6 +58,67 @@ struct BlowMeterView: View {
         connection.stop()
         detector.stopMonitoring()
       }
+    }
+  }
+
+  /// The player holding this phone is looking at the Mac screen, so this card
+  /// only has to answer two things: what is my job, and what is the game doing
+  /// right now.
+  private var roleCard: some View {
+    HStack(spacing: 14) {
+      Text("A")
+        .font(.system(size: 30, weight: .black, design: .rounded))
+        .foregroundStyle(.orange)
+        .frame(width: 54, height: 54)
+        .background(.orange.opacity(0.15), in: Circle())
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text("불어서 버블 만들기")
+          .font(.headline)
+        Text("B 플레이어가 Mac 화면에서 손으로 터뜨립니다.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Spacer()
+    }
+    .padding()
+    .background(.background, in: RoundedRectangle(cornerRadius: 18))
+    .overlay(alignment: .bottom) {
+      if let roundText = roundStateText {
+        Text(roundText)
+          .font(.caption.bold())
+          .foregroundStyle(.white)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 6)
+          .background(roundStateTint, in: Capsule())
+          .offset(y: 12)
+      }
+    }
+    .padding(.bottom, connection.remotePhase == nil ? 0 : 12)
+  }
+
+  private var roundStateText: String? {
+    switch connection.remotePhase {
+    case .none: return nil
+    case .ready: return "Mac에서 시작을 기다리는 중"
+    case .countdown:
+      return connection.remoteCountdown.map { "곧 시작합니다 · \($0)" }
+        ?? "곧 시작합니다"
+    case .playing: return "진행 중 · 지금 불어 주세요"
+    case .pausedHandsLost: return "일시정지 · B의 손을 인식하지 못했습니다"
+    case .pausedPeerLost: return "일시정지 · 연결 확인 중"
+    case .result: return "라운드 종료"
+    }
+  }
+
+  private var roundStateTint: Color {
+    switch connection.remotePhase {
+    case .playing: return .green
+    case .countdown: return .cyan
+    case .pausedHandsLost, .pausedPeerLost: return .orange
+    case .result: return .purple
+    default: return .gray
     }
   }
 

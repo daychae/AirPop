@@ -346,8 +346,12 @@ final class GameScene: SKScene {
     guard size.width > 1, size.height > 1 else { return }
 
     let activeBombs = bubbles.lazy.filter { $0.node.isBomb }.count
+    // No bombs in co-op. A hard blow creates eight bubbles a second, and a 20%
+    // bomb chance on top of that turns a cooperative game into a minefield.
+    // Difficulty options can bring them back later.
     let canSpawnBomb =
-      elapsed >= 5
+      !isCooperative
+      && elapsed >= 5
       && activeBombs < GameRules.maximumBombs
       && !lastSpawnWasBomb
     let isBomb =
