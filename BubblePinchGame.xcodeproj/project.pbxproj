@@ -1,0 +1,416 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* BubblePinchGameApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* BubblePinchGameApp.swift */; };
+		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
+		A10000000000000000000003 /* CameraHandTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* CameraHandTracker.swift */; };
+		A10000000000000000000004 /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* CameraPreview.swift */; };
+		A10000000000000000000005 /* HandPose.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* HandPose.swift */; };
+		A10000000000000000000006 /* HandOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* HandOverlayView.swift */; };
+		A10000000000000000000007 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* GameScene.swift */; };
+		A10000000000000000000008 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* GameModels.swift */; };
+		A10000000000000000000009 /* GameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* GameSession.swift */; };
+		A1000000000000000000000A /* HandGestureClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* HandGestureClassifier.swift */; };
+		A1000000000000000000000B /* PinchGestureClassifier.mlmodel in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* PinchGestureClassifier.mlmodel */; };
+		A1000000000000000000000C /* AirPopBonjourServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* AirPopBonjourServer.swift */; };
+		B10000000000000000000001 /* AirPuffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* AirPuffApp.swift */; };
+		B10000000000000000000002 /* BlowMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* BlowMeterView.swift */; };
+		B10000000000000000000003 /* BlowDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* BlowDetector.swift */; };
+		B10000000000000000000004 /* AirPopConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* AirPopConnection.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000000 /* BubblePinchGame.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BubblePinchGame.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000001 /* BubblePinchGameApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePinchGameApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* CameraHandTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraHandTracker.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* HandPose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandPose.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* HandOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandOverlayView.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A20000000000000000000009 /* BubblePinchGame.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BubblePinchGame.entitlements; sourceTree = "<group>"; };
+		A2000000000000000000000A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		A2000000000000000000000B /* GameModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModels.swift; sourceTree = "<group>"; };
+		A2000000000000000000000C /* GameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSession.swift; sourceTree = "<group>"; };
+		A2000000000000000000000D /* HandGestureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandGestureClassifier.swift; sourceTree = "<group>"; };
+		A2000000000000000000000E /* PinchGestureClassifier.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = PinchGestureClassifier.mlmodel; sourceTree = "<group>"; };
+		A2000000000000000000000F /* AirPopBonjourServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopBonjourServer.swift; sourceTree = "<group>"; };
+		B20000000000000000000000 /* AirPuff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirPuff.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000001 /* AirPuffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPuffApp.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* BlowMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlowMeterView.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* BlowDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlowDetector.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000005 /* AirPopConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopConnection.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* BubblePinchGame */,
+				B40000000000000000000001 /* AirPuff */,
+				A40000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* BubblePinchGame */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* BubblePinchGameApp.swift */,
+				A20000000000000000000002 /* ContentView.swift */,
+				A20000000000000000000003 /* CameraHandTracker.swift */,
+				A20000000000000000000004 /* CameraPreview.swift */,
+				A20000000000000000000005 /* HandPose.swift */,
+				A20000000000000000000006 /* HandOverlayView.swift */,
+				A20000000000000000000007 /* GameScene.swift */,
+				A2000000000000000000000B /* GameModels.swift */,
+				A2000000000000000000000C /* GameSession.swift */,
+				A2000000000000000000000D /* HandGestureClassifier.swift */,
+				A2000000000000000000000E /* PinchGestureClassifier.mlmodel */,
+				A2000000000000000000000F /* AirPopBonjourServer.swift */,
+				A20000000000000000000008 /* Info.plist */,
+				A20000000000000000000009 /* BubblePinchGame.entitlements */,
+				A2000000000000000000000A /* README.md */,
+			);
+			path = BubblePinchGame;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000000 /* BubblePinchGame.app */,
+				B20000000000000000000000 /* AirPuff.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000001 /* AirPuff */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000001 /* AirPuffApp.swift */,
+				B20000000000000000000002 /* BlowMeterView.swift */,
+				B20000000000000000000003 /* BlowDetector.swift */,
+				B20000000000000000000005 /* AirPopConnection.swift */,
+				B20000000000000000000004 /* Info.plist */,
+			);
+			path = AirPuff;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* BubblePinchGame */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A80000000000000000000002 /* Build configuration list for PBXNativeTarget "BubblePinchGame" */;
+			buildPhases = (
+				A30000000000000000000002 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A30000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BubblePinchGame;
+			productName = BubblePinchGame;
+			productReference = A20000000000000000000000 /* BubblePinchGame.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B50000000000000000000001 /* AirPuff */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B80000000000000000000001 /* Build configuration list for PBXNativeTarget "AirPuff" */;
+			buildPhases = (
+				B30000000000000000000002 /* Sources */,
+				B30000000000000000000001 /* Frameworks */,
+				B30000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AirPuff;
+			productName = AirPuff;
+			productReference = B20000000000000000000000 /* AirPuff.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A60000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					A50000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					B50000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXProject "BubblePinchGame" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A50000000000000000000001 /* BubblePinchGame */,
+				B50000000000000000000001 /* AirPuff */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000B /* PinchGestureClassifier.mlmodel in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* BubblePinchGameApp.swift in Sources */,
+				A10000000000000000000002 /* ContentView.swift in Sources */,
+				A10000000000000000000003 /* CameraHandTracker.swift in Sources */,
+				A10000000000000000000004 /* CameraPreview.swift in Sources */,
+				A10000000000000000000005 /* HandPose.swift in Sources */,
+				A10000000000000000000006 /* HandOverlayView.swift in Sources */,
+				A10000000000000000000007 /* GameScene.swift in Sources */,
+				A10000000000000000000008 /* GameModels.swift in Sources */,
+				A10000000000000000000009 /* GameSession.swift in Sources */,
+				A1000000000000000000000A /* HandGestureClassifier.swift in Sources */,
+				A1000000000000000000000C /* AirPopBonjourServer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001 /* AirPuffApp.swift in Sources */,
+				B10000000000000000000002 /* BlowMeterView.swift in Sources */,
+				B10000000000000000000003 /* BlowDetector.swift in Sources */,
+				B10000000000000000000004 /* AirPopConnection.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A70000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A70000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A70000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BubblePinchGame/BubblePinchGame.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BubblePinchGame/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.BubblePinchGame;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A70000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BubblePinchGame/BubblePinchGame.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BubblePinchGame/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.BubblePinchGame;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B70000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 489Y33LB79;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AirPuff/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AirPuff;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B70000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 489Y33LB79;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AirPuff/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AirPuff;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A80000000000000000000001 /* Build configuration list for PBXProject "BubblePinchGame" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A70000000000000000000001 /* Debug */,
+				A70000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A80000000000000000000002 /* Build configuration list for PBXNativeTarget "BubblePinchGame" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A70000000000000000000003 /* Debug */,
+				A70000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B80000000000000000000001 /* Build configuration list for PBXNativeTarget "AirPuff" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70000000000000000000001 /* Debug */,
+				B70000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A60000000000000000000001 /* Project object */;
+}
