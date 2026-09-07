@@ -418,7 +418,6 @@ final class CameraHandTracker: NSObject, ObservableObject {
         id: trackID,
         thumbTip: detection.thumbTip,
         indexTip: detection.indexTip,
-        pinchPoint: detection.pinchPoint,
         pointer: lockedPoint ?? smoothed,
         pinchRatio: detection.pinchRatio,
         isPinching: isPinching,
