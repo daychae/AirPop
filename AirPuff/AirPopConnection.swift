@@ -30,8 +30,9 @@ final class AirPopConnection: ObservableObject {
   @Published private(set) var sessionShortID: String?
   @Published private(set) var manualTarget: String?
 
-  /// Kept for source compatibility with the existing blow UI.
-  @Published private(set) var sentBlowCount = 0
+  /// Counts blows, not messages, so it stays comparable to the old single-shot
+  /// behavior now that one blow produces a stream.
+  @Published private(set) var blowEventCount = 0
 
   var isConnected: Bool {
     if case .connected = state { return true }
@@ -91,9 +92,20 @@ final class AirPopConnection: ObservableObject {
     let type: AirPopMessageType
     let strength: Double?
     let forceAck: Bool
+
+    var isCritical: Bool { type.isCritical }
   }
 
-  private var pendingDraft: Draft?
+  /// Bounded so a link that stalls for a long time cannot accumulate an
+  /// unbounded backlog of transitions. Start/end pairs are small and rare
+  /// enough that this is never reached during normal play.
+  private let maximumPendingCritical = 8
+
+  /// Two queues, because the two kinds of message fail differently. A state
+  /// transition that is dropped leaves the Mac believing the wrong thing; a
+  /// strength reading that is dropped is replaced 50ms later.
+  private var pendingCritical: [Draft] = []
+  private var pendingReplaceable: Draft?
   private var isSending = false
   private var localDroppedCount = 0
   private var pendingAcks: [Int: Double] = [:]
@@ -187,12 +199,12 @@ final class AirPopConnection: ObservableObject {
 
   // MARK: - Sending
 
-  /// A completed blow. Kept on the existing call site until phase 2 replaces it
-  /// with live start/update/end events.
-  func sendBlow(strength: Double) {
+  /// Live blow events, called straight from the microphone state machine so
+  /// nothing waits on a SwiftUI state change.
+  func sendBlowEvent(_ type: AirPopMessageType, strength: Double) {
     enqueue(
       Draft(
-        type: .blow,
+        type: type,
         strength: min(max(strength, 0), 1),
         forceAck: false
       ))
@@ -244,30 +256,45 @@ final class AirPopConnection: ObservableObject {
         $0.sentCount = 0
         $0.ackCount = 0
         $0.droppedCount = 0
-        $0.sentBlowCount = 0
+        $0.blowEventCount = 0
         $0.rtt = .empty
       }
     }
   }
 
-  /// Replaces any unsent value rather than queueing behind it. Under a stalled
-  /// link this keeps at most one message waiting, so recovery does not deliver
-  /// a burst of readings the player made seconds ago.
+  /// Replaces an unsent strength reading rather than queueing behind it. Under
+  /// a stalled link this keeps at most one reading waiting, so recovery does
+  /// not deliver a burst of values the player produced seconds ago.
   private func enqueue(_ draft: Draft) {
     queue.async { [weak self] in
       guard let self, self.connection != nil else { return }
 
       guard !self.isSending else {
-        if self.pendingDraft != nil {
-          self.localDroppedCount += 1
-          let dropped = self.localDroppedCount
-          self.publish { $0.droppedCount = dropped }
+        if draft.isCritical {
+          if self.pendingCritical.count < self.maximumPendingCritical {
+            self.pendingCritical.append(draft)
+          }
+        } else {
+          if self.pendingReplaceable != nil {
+            self.localDroppedCount += 1
+            let dropped = self.localDroppedCount
+            self.publish { $0.droppedCount = dropped }
+          }
+          self.pendingReplaceable = draft
         }
-        self.pendingDraft = draft
         return
       }
       self.flush(draft)
     }
+  }
+
+  /// Transitions first: their order is the meaning.
+  private func nextPendingDraft() -> Draft? {
+    if !pendingCritical.isEmpty {
+      return pendingCritical.removeFirst()
+    }
+    defer { pendingReplaceable = nil }
+    return pendingReplaceable
   }
 
   private func flush(_ draft: Draft) {
@@ -309,15 +336,14 @@ final class AirPopConnection: ObservableObject {
         if let error {
           self.publish { $0.state = .failed(error.localizedDescription) }
         } else {
-          let isBlow = draft.type == .blow
+          let startsBlow = draft.type == .blowStart
           self.publish {
             $0.sentCount += 1
-            if isBlow { $0.sentBlowCount += 1 }
+            if startsBlow { $0.blowEventCount += 1 }
           }
         }
 
-        if let next = self.pendingDraft {
-          self.pendingDraft = nil
+        if let next = self.nextPendingDraft() {
           self.flush(next)
         }
       })
@@ -465,7 +491,8 @@ final class AirPopConnection: ObservableObject {
   }
 
   private func resetSendState() {
-    pendingDraft = nil
+    pendingCritical.removeAll()
+    pendingReplaceable = nil
     isSending = false
     pendingAcks.removeAll()
     lastAckRequestAtMillis = nil

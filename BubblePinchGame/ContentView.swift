@@ -58,9 +58,9 @@ struct ContentView: View {
     }
     .onAppear {
       hostAddress = HostAddress.preferred()
-      blowServer.start { strength in
+      blowServer.start(onBlowStarted: { strength in
         game.handleBlow(strength: strength)
-      }
+      })
     }
     .onDisappear {
       blowServer.stop()
@@ -317,6 +317,9 @@ struct ContentView: View {
   private var blowStatus: (color: Color, label: String) {
     switch blowServer.linkState {
     case .connected:
+      if blowServer.isBlowing {
+        return (.cyan, "불기 중 · \(Int(blowServer.latestStrength * 100))%")
+      }
       return blowServer.isLive
         ? (.green, "IPHONE 활성")
         : (.yellow, "IPHONE 연결됨 · 입력 없음")
@@ -426,8 +429,9 @@ struct ContentView: View {
 
   private var strengthSummary: String {
     String(
-      format: "%.2f · %@",
+      format: "%.2f · %@ · %@",
       blowServer.latestStrength,
+      blowServer.isBlowing ? "blowing" : "idle",
       blowServer.isLive ? "live" : "stale"
     )
   }

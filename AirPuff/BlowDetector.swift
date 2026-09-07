@@ -37,10 +37,17 @@ final class BlowDetector: ObservableObject {
   private var lastBlowEndedAt = Date.distantPast
   private var eventPeakStrength = 0.0
 
-  private let minimumBlowDuration: TimeInterval = 0.12
-  private let releaseDuration: TimeInterval = 0.12
-  private let maximumBlowDuration: TimeInterval = 1.2
-  private let cooldownDuration: TimeInterval = 0.55
+  // These four values were the whole latency budget when a blow was reported
+  // only after it finished. With a live stream the Mac reacts while the player
+  // is still blowing, so they only need to be long enough to reject noise.
+  private let minimumBlowDuration: TimeInterval = 0.06
+  private let releaseDuration: TimeInterval = 0.08
+  private let cooldownDuration: TimeInterval = 0.10
+
+  /// Called from the detection state machine itself, not from a view observing
+  /// published state, so nothing waits for a SwiftUI update to send.
+  var onEvent: ((AirPopMessageType, Double) -> Void)?
+  private var lastUpdateSentAt: Date?
 
   var thresholdDecibels: Double {
     min(-8, baselineDecibels + thresholdMargin)
@@ -99,7 +106,7 @@ final class BlowDetector: ObservableObject {
       }
       inputNode.installTap(
         onBus: 0,
-        bufferSize: 2_048,
+        bufferSize: 1_024,
         format: format
       ) { [weak self] buffer, _ in
         guard let decibels = Self.decibels(from: buffer) else { return }
@@ -124,6 +131,9 @@ final class BlowDetector: ObservableObject {
     audioEngine.stop()
     removeInputTapIfNeeded()
     deactivateAudioSession()
+    if isBlowing {
+      onEvent?(.blowEnd, 0)
+    }
     isMonitoring = false
     isCalibrating = false
     isBlowing = false
@@ -164,10 +174,14 @@ final class BlowDetector: ObservableObject {
     calibrationStartedAt = Date()
     calibrationSamples.removeAll(keepingCapacity: true)
     calibrationProgress = 0
+    if isBlowing {
+      onEvent?(.blowEnd, 0)
+    }
     isBlowing = false
     strength = 0
     candidateStartedAt = nil
     lastAboveThresholdAt = nil
+    lastUpdateSentAt = nil
     statusMessage = "1.5초 동안 조용히 주변 소음을 측정합니다."
   }
 
@@ -229,26 +243,39 @@ final class BlowDetector: ObservableObject {
         peakDecibels = decibels
         blowCount += 1
         statusMessage = "Blow 감지! 강도 \(Int(normalizedStrength * 100))%"
+
+        lastUpdateSentAt = now
+        onEvent?(.blowStart, normalizedStrength)
       } else if isBlowing {
         eventPeakStrength = max(eventPeakStrength, normalizedStrength)
         peakDecibels = max(peakDecibels, decibels)
         statusMessage = "Blow 감지! 강도 \(Int(eventPeakStrength * 100))%"
+
+        // The live value, not the peak: the Mac drives bubble count and speed
+        // from what the player is doing right now.
+        sendUpdateIfDue(strength: normalizedStrength, at: now)
       }
     } else if isBlowing {
       let silenceDuration = now.timeIntervalSince(lastAboveThresholdAt ?? now)
-      let eventDuration = now.timeIntervalSince(blowStartedAt ?? now)
-      if silenceDuration >= releaseDuration || eventDuration >= maximumBlowDuration {
+      if silenceDuration >= releaseDuration {
         finishBlow(at: now)
       }
     } else {
       candidateStartedAt = nil
     }
+  }
 
-    if isBlowing,
-      now.timeIntervalSince(blowStartedAt ?? now) >= maximumBlowDuration
+  /// A blow that lasts is no longer force-ended. The old 1.2 second cap existed
+  /// because one blow produced exactly one message; a continuous stream has no
+  /// reason to cut the player off mid-breath.
+  private func sendUpdateIfDue(strength: Double, at now: Date) {
+    if let lastUpdateSentAt,
+      now.timeIntervalSince(lastUpdateSentAt) < AirPopLink.targetSendInterval
     {
-      finishBlow(at: now)
+      return
     }
+    lastUpdateSentAt = now
+    onEvent?(.blowUpdate, strength)
   }
 
   private func finishBlow(at now: Date) {
@@ -260,7 +287,10 @@ final class BlowDetector: ObservableObject {
     lastAboveThresholdAt = nil
     blowStartedAt = nil
     eventPeakStrength = 0
+    lastUpdateSentAt = nil
     statusMessage = "감지 완료. 다시 불어 보세요."
+
+    onEvent?(.blowEnd, 0)
   }
 
   private func normalizedStrength(for decibels: Double) -> Double {

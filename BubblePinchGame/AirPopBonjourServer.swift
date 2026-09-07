@@ -43,6 +43,10 @@ final class AirPopBonjourServer: ObservableObject {
   @Published private(set) var isLive = false
   @Published private(set) var latestStrength = 0.0
 
+  /// True between blowStart and blowEnd. Phase 3 drives bubble spawn rate and
+  /// rise speed from this pair rather than from message arrivals.
+  @Published private(set) var isBlowing = false
+
   var isAdvertising: Bool {
     switch linkState {
     case .advertising, .connected: return true
@@ -63,16 +67,23 @@ final class AirPopBonjourServer: ObservableObject {
   private var lastSequence = -1
   private var lastReceivedAtMillis: Double?
   private var intervals = AirPopSampleTracker()
+  /// Queue-side mirror of `isBlowing`. The published copy lives on the main
+  /// thread and cannot be read from here to make a decision.
+  private var isBlowingLocal = false
   private var staleTimer: DispatchSourceTimer?
   private var didFallBackToAutomaticPort = false
-  private var onBlow: ((Double) -> Void)?
+  /// Fired once per blow, not once per message. The live stream arrives at
+  /// 20Hz; wiring that straight to bubble creation would produce twenty bubbles
+  /// a second. Phase 3 replaces this with rate-based spawning driven by
+  /// `isBlowing` and `latestStrength`.
+  private var onBlowStarted: ((Double) -> Void)?
 
   // MARK: - Lifecycle
 
-  func start(onBlow: @escaping (Double) -> Void) {
+  func start(onBlowStarted: @escaping (Double) -> Void) {
     queue.async { [weak self] in
       guard let self, self.listener == nil else { return }
-      self.onBlow = onBlow
+      self.onBlowStarted = onBlowStarted
       self.didFallBackToAutomaticPort = false
       self.startListener(onPreferredPort: true)
       self.startStaleTimer()
@@ -96,6 +107,7 @@ final class AirPopBonjourServer: ObservableObject {
       self.activeSessionID = nil
       self.lastSequence = -1
       self.lastReceivedAtMillis = nil
+      self.isBlowingLocal = false
       self.intervals.reset()
 
       self.publish {
@@ -106,6 +118,7 @@ final class AirPopBonjourServer: ObservableObject {
         $0.pathDescription = nil
         $0.isLive = false
         $0.latestStrength = 0
+        $0.isBlowing = false
         $0.lastMessageAtMillis = nil
         $0.intervalStats = .empty
       }
@@ -214,6 +227,7 @@ final class AirPopBonjourServer: ObservableObject {
     activeSessionID = nil
     lastSequence = -1
     lastReceivedAtMillis = nil
+    isBlowingLocal = false
     intervals.reset()
 
     publish {
@@ -223,6 +237,7 @@ final class AirPopBonjourServer: ObservableObject {
       $0.pathDescription = nil
       $0.isLive = false
       $0.latestStrength = 0
+      $0.isBlowing = false
       $0.lastMessageAtMillis = nil
       $0.intervalStats = .empty
     }
@@ -312,9 +327,32 @@ final class AirPopBonjourServer: ObservableObject {
     lastReceivedAtMillis = receivedAtMillis
 
     let stats = intervals.snapshot()
-    let strength = message.type == .blow ? message.normalizedStrength : nil
     let reportedRTT = message.lastRTTMillis
     let dropped = message.droppedCount
+
+    let strength: Double? =
+      message.type.carriesStrength ? message.normalizedStrength : nil
+    // A blowStart can be lost when the link drops mid-breath and the phone
+    // reconnects with a new session: the updates resume but the transition that
+    // opened them is gone. Treat an update that arrives while idle as the start
+    // it implies, rather than streaming strength the game never acts on.
+    let blowingChange: Bool?
+    switch message.type {
+    case .blowStart, .blow: blowingChange = true
+    case .blowUpdate: blowingChange = isBlowingLocal ? nil : true
+    case .blowEnd: blowingChange = false
+    default: blowingChange = nil
+    }
+    // An explicit start always counts as one, even if a previous blowEnd was
+    // lost: the phone is the authority on its own transitions. Only the
+    // inferred case has to check that a blow is not already open.
+    let startsBlow: Bool
+    switch message.type {
+    case .blowStart, .blow: startsBlow = true
+    case .blowUpdate: startsBlow = !isBlowingLocal
+    default: startsBlow = false
+    }
+    if let blowingChange { isBlowingLocal = blowingChange }
 
     publish {
       $0.receivedCount += 1
@@ -324,12 +362,18 @@ final class AirPopBonjourServer: ObservableObject {
       $0.isLive = true
       if let reportedRTT { $0.peerReportedRTT = reportedRTT }
       if let dropped { $0.peerDroppedCount = dropped }
-      if let strength { $0.latestStrength = strength }
+      if let blowingChange { $0.isBlowing = blowingChange }
+      if message.type == .blowEnd {
+        $0.latestStrength = 0
+      } else if let strength {
+        $0.latestStrength = strength
+      }
     }
 
-    if let strength {
+    if startsBlow {
+      let value = message.normalizedStrength
       DispatchQueue.main.async { [weak self] in
-        self?.onBlow?(strength)
+        self?.onBlowStarted?(value)
       }
     }
 
@@ -355,6 +399,7 @@ final class AirPopBonjourServer: ObservableObject {
     activeSessionID = message.sessionID
     lastSequence = message.sequence
     lastReceivedAtMillis = AirPopClock.millis
+    isBlowingLocal = false
     intervals.reset()
 
     let name = message.peerName ?? "iPhone"
@@ -373,6 +418,7 @@ final class AirPopBonjourServer: ObservableObject {
       $0.lastMessageAtMillis = now
       $0.isLive = true
       $0.latestStrength = 0
+      $0.isBlowing = false
     }
     publishPath(for: connection)
 
@@ -409,11 +455,13 @@ final class AirPopBonjourServer: ObservableObject {
     guard let lastReceivedAtMillis else { return }
     let elapsed = AirPopClock.elapsed(since: lastReceivedAtMillis) / 1000
     guard elapsed >= AirPopLink.staleTimeout else { return }
+    isBlowingLocal = false
 
     publish {
       guard $0.isLive else { return }
       $0.isLive = false
       $0.latestStrength = 0
+      $0.isBlowing = false
     }
   }
 

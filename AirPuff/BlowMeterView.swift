@@ -29,15 +29,18 @@ struct BlowMeterView: View {
       .navigationTitle("AirPuff")
     }
     .onAppear {
+      // Straight from the detection state machine to the transport. Routing
+      // this through a published property and .onChange meant nothing was sent
+      // until the blow had already finished.
+      detector.onEvent = { [connection] type, strength in
+        connection.sendBlowEvent(type, strength: strength)
+      }
       connection.start()
       detector.requestPermissionAndStart()
     }
     .onDisappear {
       connection.stop()
       detector.stopMonitoring()
-    }
-    .onChange(of: detector.completedBlowSequence) { _, _ in
-      connection.sendBlow(strength: detector.lastBlowStrength)
     }
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active {

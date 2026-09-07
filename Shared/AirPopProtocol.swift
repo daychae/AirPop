@@ -12,8 +12,33 @@ enum AirPopMessageType: String, Codable {
   case ping
   /// Mac → iPhone. Echo used for round-trip timing and liveness.
   case ack
-  /// iPhone → Mac. A completed blow event (phase 1 keeps the legacy behavior).
+  /// iPhone → Mac. A completed blow event. Superseded by the live events
+  /// below; kept so an older build fails visibly rather than silently.
   case blow
+
+  /// iPhone → Mac. Blowing began.
+  case blowStart
+  /// iPhone → Mac. Latest strength while blowing, roughly every 50ms.
+  case blowUpdate
+  /// iPhone → Mac. Blowing stopped.
+  case blowEnd
+
+  /// State transitions carry meaning in their order and must never be dropped
+  /// to make room for a newer message. Only a strength reading is disposable:
+  /// the next one supersedes it 50ms later.
+  var isCritical: Bool {
+    switch self {
+    case .hello, .blowStart, .blowEnd, .blow: return true
+    case .ping, .blowUpdate, .ack, .helloAck: return false
+    }
+  }
+
+  var carriesStrength: Bool {
+    switch self {
+    case .blow, .blowStart, .blowUpdate: return true
+    default: return false
+    }
+  }
 }
 
 // MARK: - Envelope
