@@ -24,9 +24,27 @@ final class CameraHandTracker: NSObject, ObservableObject {
   /// instead of by guesswork.
   @Published private(set) var rejectedHandCount = 0
 
-  // Core ML predictions must remain stable for two frames before changing state.
   private let minimumGestureConfidence = 0.65
-  private let requiredStableFrameCount = 2
+
+  /// Pinch entry is instant; release takes two frames. Asymmetric on purpose:
+  /// a late pop feels broken, while a pinch that flickers off for one frame in
+  /// the middle of a gesture pops a second bubble.
+  private let requiredReleaseFrameCount = 2
+
+  /// Hysteresis on the thumb-index gap, as a fraction of hand scale. Entering
+  /// below 0.45 and only releasing above 0.60 means the ambiguous band in
+  /// between holds whatever the hand was already doing, instead of flickering
+  /// across a single boundary.
+  private let pinchEnterRatio: CGFloat = 0.45
+  private let pinchExitRatio: CGFloat = 0.60
+
+  /// Fingers this close are a pinch whatever the classifier says. It is the
+  /// backstop for a bad camera angle, not the normal path.
+  private let unmistakablePinchRatio: CGFloat = 0.26
+
+  /// Below this the hand is curled into a fist rather than pointing, and the
+  /// thumb-index gap stops meaning anything.
+  private let minimumIndexExtension: CGFloat = 0.55
   /// Lowered from 0.35: at exhibition distance and lighting, requiring five
   /// joints to each clear 0.35 dropped hands that were plainly visible.
   private let minimumJointConfidence: VNConfidence = 0.30
@@ -56,15 +74,15 @@ final class CameraHandTracker: NSObject, ObservableObject {
     let indexTip: CGPoint
     let pinchPoint: CGPoint
     let pinchRatio: CGFloat
+    let indexExtension: CGFloat
     let prediction: GesturePrediction
   }
 
   private struct HandTrack {
     let id: Int
     var pinchPoint: CGPoint
-    var stableGesture: HandGesture
-    var candidateGesture: HandGesture
-    var candidateFrameCount: Int
+    var isPinching: Bool
+    var releaseFrameCount: Int
     var missedFrameCount: Int
 
     /// Exponentially smoothed aim. Raw Vision output jitters enough that an
@@ -260,35 +278,55 @@ final class CameraHandTracker: NSObject, ObservableObject {
   private func detectedHand(
     from observation: VNHumanHandPoseObservation
   ) -> DetectedHand? {
+    // Only the three joints the pinch is measured from are required. Demanding
+    // all five, as before, threw away hands that were plainly visible whenever
+    // one knuckle happened to be occluded.
     guard
       let thumb = try? observation.recognizedPoint(.thumbTip),
-      let thumbMP = try? observation.recognizedPoint(.thumbMP),
       let index = try? observation.recognizedPoint(.indexTip),
       let indexMCP = try? observation.recognizedPoint(.indexMCP),
-      let littleMCP = try? observation.recognizedPoint(.littleMCP),
       thumb.confidence >= minimumJointConfidence,
-      thumbMP.confidence >= minimumJointConfidence,
       index.confidence >= minimumJointConfidence,
-      indexMCP.confidence >= minimumJointConfidence,
-      littleMCP.confidence >= minimumJointConfidence
+      indexMCP.confidence >= minimumJointConfidence
     else {
       return nil
     }
 
     let thumbRaw = CGPoint(x: thumb.location.x, y: thumb.location.y)
-    let thumbMPRaw = CGPoint(x: thumbMP.location.x, y: thumbMP.location.y)
     let indexRaw = CGPoint(x: index.location.x, y: index.location.y)
     let indexMCPRaw = CGPoint(x: indexMCP.location.x, y: indexMCP.location.y)
-    let littleMCPRaw = CGPoint(x: littleMCP.location.x, y: littleMCP.location.y)
-    let palmWidth = max(distance(indexMCPRaw, littleMCPRaw), 0.001)
-    let pinchRatio = distance(thumbRaw, indexRaw) / palmWidth
+
+    guard
+      let handScale = handScale(
+        from: observation,
+        indexMCP: indexMCPRaw
+      )
+    else {
+      return nil
+    }
+
+    let pinchRatio = distance(thumbRaw, indexRaw) / handScale
+    let indexExtension = distance(indexRaw, indexMCPRaw) / handScale
     let fingertipConfidence = Double(min(thumb.confidence, index.confidence))
+
+    // The thumb knuckle is only used for a classifier feature, so a missing one
+    // is worth estimating rather than dropping the whole hand for.
+    let thumbExtension: CGFloat
+    if let thumbMP = try? observation.recognizedPoint(.thumbMP),
+      thumbMP.confidence >= minimumJointConfidence
+    {
+      thumbExtension =
+        distance(thumbRaw, CGPoint(x: thumbMP.location.x, y: thumbMP.location.y))
+        / handScale
+    } else {
+      thumbExtension = 0.75
+    }
 
     let prediction = gestureClassifier.predict(
       metrics: HandMetrics(
         pinchRatio: Double(pinchRatio),
-        indexExtension: Double(distance(indexRaw, indexMCPRaw) / palmWidth),
-        thumbExtension: Double(distance(thumbRaw, thumbMPRaw) / palmWidth),
+        indexExtension: Double(indexExtension),
+        thumbExtension: Double(thumbExtension),
         fingertipConfidence: fingertipConfidence
       ))
 
@@ -306,8 +344,49 @@ final class CameraHandTracker: NSObject, ObservableObject {
         y: (thumbUI.y + indexUI.y) * 0.5
       ),
       pinchRatio: pinchRatio,
+      indexExtension: indexExtension,
       prediction: prediction
     )
+  }
+
+  /// Every measurement here is a ratio against hand size, so the reference
+  /// length decides whether a pinch reads as a pinch.
+  ///
+  /// Palm width alone collapses when the hand tilts towards the camera, which
+  /// inflates every ratio and makes a real pinch look like an open hand at the
+  /// exact angle players use when reaching for a bubble. Wrist to middle
+  /// knuckle barely changes under that rotation, so the larger of the two is
+  /// the more honest scale.
+  private func handScale(
+    from observation: VNHumanHandPoseObservation,
+    indexMCP: CGPoint
+  ) -> CGFloat? {
+    var candidates: [CGFloat] = []
+
+    if let littleMCP = try? observation.recognizedPoint(.littleMCP),
+      littleMCP.confidence >= minimumJointConfidence
+    {
+      candidates.append(
+        distance(indexMCP, CGPoint(x: littleMCP.location.x, y: littleMCP.location.y))
+      )
+    }
+
+    if let wrist = try? observation.recognizedPoint(.wrist),
+      let middleMCP = try? observation.recognizedPoint(.middleMCP),
+      wrist.confidence >= minimumJointConfidence,
+      middleMCP.confidence >= minimumJointConfidence
+    {
+      let palmLength = distance(
+        CGPoint(x: wrist.location.x, y: wrist.location.y),
+        CGPoint(x: middleMCP.location.x, y: middleMCP.location.y)
+      )
+      // Palm length runs longer than palm width on a real hand; scaled so the
+      // two references produce comparable ratios.
+      candidates.append(palmLength * 0.80)
+    }
+
+    guard let scale = candidates.max(), scale > 0.001 else { return nil }
+    return scale
   }
 
   private func updateTracks(with detections: [DetectedHand]) -> [HandPose] {
@@ -354,37 +433,14 @@ final class CameraHandTracker: NSObject, ObservableObject {
       }
 
       let previousTrack = handTracks[trackID]
-      let wasPinching = previousTrack?.stableGesture == .pinch
-      var stableGesture = previousTrack?.stableGesture ?? .open
-      var candidateGesture = previousTrack?.candidateGesture ?? .unknown
-      var candidateFrameCount = previousTrack?.candidateFrameCount ?? 0
+      let wasPinching = previousTrack?.isPinching ?? false
       let previousSmoothed = previousTrack?.smoothedPoint
 
-      let prediction = detection.prediction
-      if prediction.confidence >= minimumGestureConfidence,
-        prediction.gesture != .unknown
-      {
-        if prediction.gesture == stableGesture {
-          candidateGesture = .unknown
-          candidateFrameCount = 0
-        } else if prediction.gesture == candidateGesture {
-          candidateFrameCount += 1
-        } else {
-          candidateGesture = prediction.gesture
-          candidateFrameCount = 1
-        }
-
-        if candidateFrameCount >= requiredStableFrameCount {
-          stableGesture = prediction.gesture
-          candidateGesture = .unknown
-          candidateFrameCount = 0
-        }
-      } else {
-        candidateGesture = .unknown
-        candidateFrameCount = 0
-      }
-
-      let isPinching = stableGesture == .pinch
+      let (isPinching, releaseFrameCount) = resolvePinch(
+        detection,
+        wasPinching: wasPinching,
+        releaseFrameCount: previousTrack?.releaseFrameCount ?? 0
+      )
 
       let smoothed = smooth(detection.pinchPoint, from: previousSmoothed)
       var lockedPoint = previousTrack?.lockedPoint
@@ -405,9 +461,8 @@ final class CameraHandTracker: NSObject, ObservableObject {
       handTracks[trackID] = HandTrack(
         id: trackID,
         pinchPoint: detection.pinchPoint,
-        stableGesture: stableGesture,
-        candidateGesture: candidateGesture,
-        candidateFrameCount: candidateFrameCount,
+        isPinching: isPinching,
+        releaseFrameCount: releaseFrameCount,
         missedFrameCount: 0,
         smoothedPoint: smoothed,
         lockedPoint: lockedPoint,
@@ -424,6 +479,45 @@ final class CameraHandTracker: NSObject, ObservableObject {
         pinchBegan: isPinching && !wasPinching
       )
     }
+  }
+
+  /// Hysteresis, not a single boundary.
+  ///
+  /// Driving the state from the classifier's label alone meant a hand hovering
+  /// near the decision point flipped every frame, and any band the classifier
+  /// was unsure about froze the hand in whatever state it started in. Entry and
+  /// release now have separate thresholds, and the gap between them is what
+  /// absorbs the jitter.
+  private func resolvePinch(
+    _ detection: DetectedHand,
+    wasPinching: Bool,
+    releaseFrameCount: Int
+  ) -> (isPinching: Bool, releaseFrameCount: Int) {
+    let prediction = detection.prediction
+    let isConfident = prediction.confidence >= minimumGestureConfidence
+    let looksLikeHand = detection.indexExtension >= minimumIndexExtension
+
+    guard wasPinching else {
+      guard looksLikeHand, detection.pinchRatio <= pinchEnterRatio else {
+        return (false, 0)
+      }
+      let classifierAgrees = prediction.gesture == .pinch && isConfident
+      let unmistakable = detection.pinchRatio <= unmistakablePinchRatio
+      return (classifierAgrees || unmistakable, 0)
+    }
+
+    // A hand that has curled out of view should release rather than stay
+    // latched, so a failed shape check counts towards release too.
+    let wantsRelease =
+      !looksLikeHand
+      || detection.pinchRatio >= pinchExitRatio
+      || (prediction.gesture == .open && isConfident
+        && detection.pinchRatio > pinchEnterRatio)
+
+    guard wantsRelease else { return (true, 0) }
+
+    let count = releaseFrameCount + 1
+    return count >= requiredReleaseFrameCount ? (false, 0) : (true, count)
   }
 
   private func ageUnmatchedTracks(matching matchedTrackIDs: Set<Int>) {

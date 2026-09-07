@@ -91,6 +91,23 @@ Vision extracts hand landmarks on the Mac. Four normalized features are passed
 to the bundled `PinchGestureClassifier.mlmodel`, which classifies each tracked
 hand as `open`, `pinch`, or `background`.
 
+The model is generated, not learned from recorded hands: `Tools` synthesizes a
+labelled feature distribution and fits a random forest to it. That makes the
+training script the only place the model's behavior can actually be changed,
+since the `.mlmodel` itself is a binary.
+
+```bash
+swift Tools/TrainPinchGestureClassifier.swift BubblePinchGame/PinchGestureClassifier.mlmodel
+xcrun coremlcompiler compile BubblePinchGame/PinchGestureClassifier.mlmodel /tmp/airpop
+swift Tools/ValidatePinchGestureClassifier.swift /tmp/airpop/PinchGestureClassifier.mlmodelc
+```
+
+Pinch state uses hysteresis rather than the label alone: it enters below a
+thumb-index gap of 0.45 hand widths and only releases above 0.60, so a hand
+hovering near the boundary holds its state instead of flickering. Entry takes
+one frame and release takes two, because a late pop feels broken while a
+one-frame dropout mid-gesture pops a second bubble.
+
 When the compiled model is missing or a prediction fails, a joint-distance rule
 takes over. It is less accurate, but an exhibition that loses its model file
 should degrade to a playable game rather than to one where no pinch is ever

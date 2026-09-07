@@ -110,18 +110,21 @@ final class HandGestureClassifier {
     let gesture: HandGesture
     let confidence: Double
 
-    if metrics.pinchRatio < 0.34,
-      metrics.indexExtension > 0.72,
+    // Boundaries match the retrained model and the runtime's enter threshold.
+    // The prototype's 0.34/0.48 pair left the same gap the model had, so the
+    // fallback would have reintroduced the dead band it exists to survive.
+    if metrics.pinchRatio < 0.45,
+      metrics.indexExtension > 0.55,
       metrics.fingertipConfidence > 0.3
     {
       gesture = .pinch
-      confidence = min(1, (0.34 - metrics.pinchRatio) / 0.34 + 0.55)
-    } else if metrics.pinchRatio > 0.48,
-      metrics.indexExtension > 0.70,
+      confidence = min(1, (0.45 - metrics.pinchRatio) / 0.45 + 0.55)
+    } else if metrics.pinchRatio >= 0.45,
+      metrics.indexExtension > 0.55,
       metrics.fingertipConfidence > 0.3
     {
       gesture = .open
-      confidence = min(1, (metrics.pinchRatio - 0.48) + 0.60)
+      confidence = min(1, (metrics.pinchRatio - 0.45) + 0.60)
     } else {
       gesture = .unknown
       confidence = 0.4

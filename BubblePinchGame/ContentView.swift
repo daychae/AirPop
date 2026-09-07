@@ -59,6 +59,7 @@ struct ContentView: View {
     .onAppear {
       hostAddress = HostAddress.preferred()
       game.setModelReady(tracker.isMLReady)
+      AudioManager.shared.preload()
       blowServer.start(
         onBlowStarted: { strength in
           game.handleBlowStarted(strength: strength)
@@ -430,6 +431,7 @@ struct ContentView: View {
             diagnosticRow("GAPS", gapSummary)
             diagnosticRow("STRENGTH", strengthSummary)
             diagnosticRow("HANDS", handSummary)
+            diagnosticRow("GESTURE", tracker.classifierName)
           }
           .padding(14)
           .background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
@@ -522,8 +524,14 @@ struct ContentView: View {
   /// lighting, is what needs adjusting.
   private var handSummary: String {
     let pinching = tracker.poses.filter(\.isPinching).count
+    // The live pinch ratio is what the enter and exit thresholds are compared
+    // against, so showing it turns tuning at the venue into reading a number
+    // rather than guessing.
+    let ratios = tracker.poses
+      .map { String(format: "%.2f", $0.pinchRatio) }
+      .joined(separator: " ")
     return "\(tracker.poses.count) tracked · \(pinching) pinching · "
-      + "\(tracker.rejectedHandCount) below threshold · \(tracker.classifierName)"
+      + "\(tracker.rejectedHandCount) rejected · ratio [\(ratios)]"
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {
