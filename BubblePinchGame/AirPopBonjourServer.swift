@@ -296,12 +296,18 @@ final class AirPopBonjourServer: ObservableObject {
     }
 
     guard message.sequence > lastSequence else { return }
+    // The phone assigns a sequence as it sends, so a coalesced value never
+    // consumes one. Any gap here is real loss or a bug, never normal throttling.
     let gap = message.sequence - lastSequence - 1
     lastSequence = message.sequence
 
-    let interval = lastReceivedAtMillis.map { receivedAtMillis - $0 }
-    if let interval {
-      intervals.record(interval)
+    // One receive callback can carry several messages when the link stalls and
+    // then flushes. Those share a timestamp, so recording an interval for each
+    // would bury a 200ms burst under a pile of zeros and make p50 look healthy.
+    // Only the first message of a batch records, which keeps the statistic
+    // answering "how often does fresh input actually arrive".
+    if let previous = lastReceivedAtMillis, receivedAtMillis > previous {
+      intervals.record(receivedAtMillis - previous)
     }
     lastReceivedAtMillis = receivedAtMillis
 

@@ -68,6 +68,11 @@ struct ContentView: View {
     .onChange(of: blowServer.listenerPort) { _, _ in
       hostAddress = HostAddress.preferred()
     }
+    .onChange(of: showsDiagnostics) { _, isShown in
+      // Interfaces come and go while the app runs, most notably when a USB
+      // cable is plugged in, so re-read rather than trusting the launch value.
+      if isShown { hostAddress = HostAddress.preferred() }
+    }
     .onReceive(tracker.$poses) { poses in
       let viewPoints = Dictionary(
         uniqueKeysWithValues: poses.compactMap { pose in
@@ -413,7 +418,10 @@ struct ContentView: View {
   }
 
   private var gapSummary: String {
-    "\(blowServer.sequenceGapCount) · dropped by peer: \(blowServer.peerDroppedCount)"
+    // Gaps should stay at zero: coalesced values never consume a sequence
+    // number, so anything here is loss or a bug rather than normal throttling.
+    "\(blowServer.sequenceGapCount) (expect 0) · coalesced by peer: "
+      + "\(blowServer.peerDroppedCount)"
   }
 
   private var strengthSummary: String {

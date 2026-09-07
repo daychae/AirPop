@@ -45,16 +45,45 @@ traffic even when both devices use the same Wi-Fi.
 
 ## Data sent over the network
 
-AirPuff does not transmit microphone audio. Each completed blow sends one
-newline-delimited JSON message containing only its strength and timestamp:
+AirPuff does not transmit microphone audio. Messages are newline-delimited
+JSON on a TCP connection, and carry only strength, timing, and bookkeeping:
 
 ```json
 {
+  "v": 2,
   "type": "blow",
+  "sessionID": "8C3F...",
+  "sequence": 42,
   "strength": 0.72,
-  "timestamp": 1788786000
+  "sentAtMillis": 128374,
+  "wantsAck": false
 }
 ```
+
+Timestamps are monotonic milliseconds relative to each app's own start, never
+wall-clock time, so the two devices need no clock synchronization.
+
+The Mac replies only when the phone sets `wantsAck` -- on `hello`, on every
+diagnostic message, and once per second during play. That reply is what proves
+the Mac app is still consuming input: a TCP connection reports `.ready` and
+keeps accepting sends long after the peer has stopped reading.
+
+Each connection claims a fresh `sessionID` with the sequence rewound to zero.
+The Mac serves one session at a time and drops anything from a replaced
+connection, so reconnecting never replays input produced before the drop.
+
+## Connecting
+
+The Mac listens on port 51888 when it is free, falling back to an automatic
+port, and advertises `_airpop._tcp`. AirPuff finds it automatically.
+
+When a venue network blocks mDNS, open **Connection test > Direct connect** in
+AirPuff and type the address shown on the Mac's start screen. Press `D` on the
+Mac for a diagnostics panel with the listening address, arrival intervals,
+round trip, and which physical path the phone took.
+
+The transport does not pin an interface type, so Wi-Fi, peer-to-peer, and a
+USB connection all work without a code change.
 
 ## Machine learning
 

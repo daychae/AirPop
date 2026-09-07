@@ -22,7 +22,10 @@ bubbles so the full round can be tested.
 - Automatic pause when every hand has been missing for 1.5 seconds
 - Procedural SpriteKit vector bubbles and pop/bomb effects
 - AirPuff iPhone companion with live dBFS blow detection and calibration
-- Bonjour discovery and strength-only event transfer to the Mac game
+- Bonjour discovery on a fixed port, with manual host entry as a fallback
+- Session-scoped link that rejects input from a replaced connection
+- Diagnostics panel behind the `D` key: arrival intervals, round trip, gaps,
+  and the physical path in use
 - `GameScene.spawnBubble(strength:)` entry point for received iPhone events
 
 ## Machine learning pipeline
