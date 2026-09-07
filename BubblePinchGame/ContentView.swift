@@ -7,6 +7,8 @@ struct ContentView: View {
   @StateObject private var cameraCoordinates = CameraCoordinateMapper()
   @StateObject private var game = GameSession()
   @StateObject private var blowServer = AirPopBonjourServer()
+  @State private var showsDiagnostics = false
+  @State private var hostAddress: HostAddress.Entry?
 
   var body: some View {
     ZStack {
@@ -39,15 +41,32 @@ struct ContentView: View {
       }
 
       phaseOverlay
+
+      if showsDiagnostics {
+        diagnosticsOverlay
+      }
     }
     .background(.black)
+    .background {
+      // Hidden control so `D` toggles the diagnostics panel. It stays off by
+      // default: the numbers must not cover the game during an exhibition.
+      Button("Toggle diagnostics") {
+        showsDiagnostics.toggle()
+      }
+      .keyboardShortcut("d", modifiers: [])
+      .opacity(0)
+    }
     .onAppear {
+      hostAddress = HostAddress.preferred()
       blowServer.start { strength in
         game.handleBlow(strength: strength)
       }
     }
     .onDisappear {
       blowServer.stop()
+    }
+    .onChange(of: blowServer.listenerPort) { _, _ in
+      hostAddress = HostAddress.preferred()
     }
     .onReceive(tracker.$poses) { poses in
       let viewPoints = Dictionary(
@@ -177,6 +196,13 @@ struct ContentView: View {
 
         blowStatusPill
 
+        if let hostAddress, blowServer.listenerPort > 0 {
+          Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.5))
+            .textSelection(.enabled)
+        }
+
         Text(
           tracker.isMLReady
             ? "입력 엔진: \(tracker.classifierName) · 최대 4손"
@@ -271,18 +297,131 @@ struct ContentView: View {
   private var blowStatusPill: some View {
     HStack(spacing: 8) {
       Circle()
-        .fill(blowServer.connectedDeviceCount > 0 ? Color.green : Color.orange)
+        .fill(blowStatus.color)
         .frame(width: 9, height: 9)
-      Text(
-        blowServer.connectedDeviceCount > 0
-          ? "\(blowServer.connectedDeviceCount) IPHONE CONNECTED"
-          : (blowServer.isAdvertising ? "IPHONE 대기 중" : "BONJOUR 시작 중")
-      )
-      .font(.caption.bold())
+      Text(blowStatus.label)
+        .font(.caption.bold())
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
     .background(.black.opacity(0.52), in: Capsule())
+  }
+
+  /// "Connected" and "actually receiving input" are different states, and only
+  /// separating them makes a silent phone diagnosable at a glance.
+  private var blowStatus: (color: Color, label: String) {
+    switch blowServer.linkState {
+    case .connected:
+      return blowServer.isLive
+        ? (.green, "IPHONE 활성")
+        : (.yellow, "IPHONE 연결됨 · 입력 없음")
+    case .advertising:
+      return (.orange, "IPHONE 대기 중")
+    case .starting, .stopped:
+      return (.orange, "BONJOUR 시작 중")
+    case .protocolMismatch(let version):
+      return (.red, "앱 버전 불일치 (v\(version))")
+    case .failed:
+      return (.red, "네트워크 오류")
+    }
+  }
+
+  /// Hidden behind `D`. Everything here answers one question: is a silent Mac
+  /// silent because nothing arrived, or because what arrived was rejected?
+  private var diagnosticsOverlay: some View {
+    VStack {
+      HStack {
+        Spacer()
+        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+          VStack(alignment: .leading, spacing: 3) {
+            diagnosticRow("LINK", linkSummary)
+            diagnosticRow("ADDRESS", addressSummary)
+            diagnosticRow("PATH", blowServer.pathDescription ?? "—")
+            diagnosticRow("RECEIVED", receivedSummary)
+            diagnosticRow("INTERVAL", intervalSummary)
+            diagnosticRow("RTT", rttSummary)
+            diagnosticRow("GAPS", gapSummary)
+            diagnosticRow("STRENGTH", strengthSummary)
+          }
+          .padding(14)
+          .background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
+          .overlay {
+            RoundedRectangle(cornerRadius: 14)
+              .stroke(.white.opacity(0.14), lineWidth: 1)
+          }
+        }
+      }
+      Spacer()
+    }
+    .padding(20)
+    .allowsHitTesting(false)
+  }
+
+  private func diagnosticRow(_ title: String, _ value: String) -> some View {
+    HStack(spacing: 10) {
+      Text(title)
+        .font(.system(size: 10, weight: .bold, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.45))
+        .frame(width: 74, alignment: .leading)
+      Text(value)
+        .font(.system(size: 11, design: .monospaced))
+        .foregroundStyle(.white)
+    }
+  }
+
+  private var linkSummary: String {
+    switch blowServer.linkState {
+    case .stopped: return "stopped"
+    case .starting: return "starting"
+    case .advertising: return "advertising · no peer"
+    case .connected:
+      let name = blowServer.peerName ?? "peer"
+      let session = blowServer.sessionShortID ?? "??????"
+      return "\(blowServer.isLive ? "live" : "idle") · \(name) (\(session))"
+    case .protocolMismatch(let version):
+      return "PROTOCOL MISMATCH · peer v\(version), self v\(AirPopLink.protocolVersion)"
+    case .failed(let message): return "failed · \(message)"
+    }
+  }
+
+  private var addressSummary: String {
+    guard blowServer.listenerPort > 0 else { return "—" }
+    let host = hostAddress.map { "\($0.address) (\($0.interface))" } ?? "?"
+    return "\(host) : \(String(blowServer.listenerPort))"
+  }
+
+  private var receivedSummary: String {
+    guard let last = blowServer.lastMessageAtMillis else {
+      return "\(blowServer.receivedCount) msgs · never"
+    }
+    let elapsed = Int(AirPopClock.elapsed(since: last).rounded())
+    return "\(blowServer.receivedCount) msgs · \(elapsed) ms ago"
+  }
+
+  private var intervalSummary: String {
+    let stats = blowServer.intervalStats
+    guard stats.count > 0 else { return "—" }
+    return String(
+      format: "p50 %.0f · p95 %.0f · max %.0f ms (n=%d)",
+      stats.p50, stats.p95, stats.maximum, stats.count
+    )
+  }
+
+  private var rttSummary: String {
+    guard let rtt = blowServer.peerReportedRTT else { return "—" }
+    return String(format: "%.1f ms (peer reported)", rtt)
+  }
+
+  private var gapSummary: String {
+    "\(blowServer.sequenceGapCount) · dropped by peer: \(blowServer.peerDroppedCount)"
+  }
+
+  private var strengthSummary: String {
+    String(
+      format: "%.2f · %@",
+      blowServer.latestStrength,
+      blowServer.isLive ? "live" : "stale"
+    )
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {

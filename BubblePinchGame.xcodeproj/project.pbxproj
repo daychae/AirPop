@@ -22,6 +22,8 @@
 		B10000000000000000000001 /* AirPuffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* AirPuffApp.swift */; };
 		B10000000000000000000002 /* BlowMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* BlowMeterView.swift */; };
 		B10000000000000000000003 /* BlowDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* BlowDetector.swift */; };
+		A10000000000000000000022 /* AirPopLinkStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* AirPopLinkStats.swift */; };
+		A10000000000000000000023 /* HostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HostAddress.swift */; };
 		A10000000000000000000020 /* AirPopProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* AirPopProtocol.swift */; };
 		A10000000000000000000021 /* MonotonicClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* MonotonicClock.swift */; };
 		B10000000000000000000020 /* AirPopProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* AirPopProtocol.swift */; };
@@ -54,6 +56,8 @@
 		B20000000000000000000005 /* AirPopConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopConnection.swift; sourceTree = "<group>"; };
 		C20000000000000000000001 /* AirPopProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopProtocol.swift; sourceTree = "<group>"; };
 		C20000000000000000000002 /* MonotonicClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonotonicClock.swift; sourceTree = "<group>"; };
+		A20000000000000000000020 /* AirPopLinkStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopLinkStats.swift; sourceTree = "<group>"; };
+		A20000000000000000000021 /* HostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAddress.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +103,8 @@
 				A2000000000000000000000D /* HandGestureClassifier.swift */,
 				A2000000000000000000000E /* PinchGestureClassifier.mlmodel */,
 				A2000000000000000000000F /* AirPopBonjourServer.swift */,
+				A20000000000000000000020 /* AirPopLinkStats.swift */,
+				A20000000000000000000021 /* HostAddress.swift */,
 				A20000000000000000000008 /* Info.plist */,
 				A20000000000000000000009 /* BubblePinchGame.entitlements */,
 				A2000000000000000000000A /* README.md */,
@@ -246,6 +252,8 @@
 				A1000000000000000000000C /* AirPopBonjourServer.swift in Sources */,
 				A10000000000000000000020 /* AirPopProtocol.swift in Sources */,
 				A10000000000000000000021 /* MonotonicClock.swift in Sources */,
+				A10000000000000000000022 /* AirPopLinkStats.swift in Sources */,
+				A10000000000000000000023 /* HostAddress.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
