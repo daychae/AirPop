@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
   @StateObject private var tracker = CameraHandTracker()
@@ -9,6 +10,7 @@ struct ContentView: View {
   @StateObject private var blowServer = AirPopBonjourServer()
   @State private var showsDiagnostics = false
   @State private var hostAddress: HostAddress.Entry?
+  @State private var photoSaveMessage: String?
 
   var body: some View {
     ZStack {
@@ -76,6 +78,22 @@ struct ContentView: View {
       hostAddress = HostAddress.preferred()
       game.setModelReady(tracker.isMLReady)
       AudioManager.shared.preload()
+      let scene = game.scene
+      game.resultPhotoProvider = { [weak tracker, weak scene] score, bestCombo in
+        guard
+          let cameraImage = tracker?.latestCameraImage(),
+          let scene
+        else {
+          return nil
+        }
+        return ResultPhotoComposer.make(
+          cameraImage: cameraImage,
+          overlayImage: scene.snapshotImage(),
+          canvasSize: scene.size,
+          score: score,
+          bestCombo: bestCombo
+        )
+      }
       blowServer.start(
         onBlowStarted: { strength in
           game.handleBlowStarted(strength: strength)
@@ -85,6 +103,7 @@ struct ContentView: View {
         })
     }
     .onDisappear {
+      game.resultPhotoProvider = nil
       blowServer.stop()
     }
     .onChange(of: blowServer.listenerPort) { _, _ in
@@ -252,13 +271,17 @@ struct ContentView: View {
         }
 
         VStack(alignment: .leading, spacing: 7) {
-          readinessRow("B · 손 인식", isReady: game.hasHands,
+          readinessRow(
+            "B · 손 인식", isReady: game.hasHands,
             detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
-          readinessRow("B · 제스처 인식", isReady: game.isModelReady,
+          readinessRow(
+            "B · 제스처 인식", isReady: game.isModelReady,
             detail: tracker.classifierName)
-          readinessRow("A · 아이폰 연결", isReady: game.isPeerConnected,
+          readinessRow(
+            "A · 아이폰 연결", isReady: game.isPeerConnected,
             detail: blowStatus.label)
-          readinessRow("A · 마이크 보정", isReady: game.isPeerMicReady,
+          readinessRow(
+            "A · 마이크 보정", isReady: game.isPeerMicReady,
             detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
         }
         .padding(.horizontal, 18)
@@ -271,6 +294,13 @@ struct ContentView: View {
             .foregroundStyle(.white.opacity(0.5))
             .textSelection(.enabled)
         }
+
+        Label(
+          "테스트 기능 · 종료 순간 카메라와 버블을 결과 사진으로 만듭니다",
+          systemImage: "camera.aperture"
+        )
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.62))
 
         Button("게임 시작") {
           game.beginCountdown()
@@ -366,13 +396,50 @@ struct ContentView: View {
           resultStat("최고 콤보", value: game.bestCombo, color: .yellow)
         }
 
-        Button("다시 하기") {
-          game.returnToReady()
+        if let photo = game.resultPhoto {
+          Image(nsImage: photo)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: 460, maxHeight: 250)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay {
+              RoundedRectangle(cornerRadius: 18)
+                .stroke(.white.opacity(0.28), lineWidth: 1)
+            }
+
+          HStack(spacing: 12) {
+            Button("PNG 저장") {
+              saveResultPhoto(photo)
+            }
+            .buttonStyle(.bordered)
+
+            Button("다시 하기") {
+              photoSaveMessage = nil
+              game.returnToReady()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.cyan)
+            .keyboardShortcut(.return, modifiers: [])
+          }
+        } else {
+          Text("결과 사진을 만들지 못했습니다. 카메라 상태를 확인해 주세요.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          Button("다시 하기") {
+            photoSaveMessage = nil
+            game.returnToReady()
+          }
+          .buttonStyle(.borderedProminent)
+          .tint(.cyan)
+          .keyboardShortcut(.return, modifiers: [])
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(.cyan)
-        .keyboardShortcut(.return, modifiers: [])
+
+        if let photoSaveMessage {
+          Text(photoSaveMessage)
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.7))
+        }
       }
       .padding(.horizontal, 10)
     }
@@ -596,6 +663,36 @@ struct ContentView: View {
       return
     }
     NSWorkspace.shared.open(url)
+  }
+
+  private func saveResultPhoto(_ image: NSImage) {
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [.png]
+    panel.canCreateDirectories = true
+    panel.nameFieldStringValue = "AirPop-\(photoTimestamp).png"
+
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    guard
+      let tiff = image.tiffRepresentation,
+      let bitmap = NSBitmapImageRep(data: tiff),
+      let png = bitmap.representation(using: .png, properties: [:])
+    else {
+      photoSaveMessage = "PNG 변환에 실패했습니다."
+      return
+    }
+
+    do {
+      try png.write(to: url, options: .atomic)
+      photoSaveMessage = "\(url.lastPathComponent) 저장 완료"
+    } catch {
+      photoSaveMessage = "저장 실패: \(error.localizedDescription)"
+    }
+  }
+
+  private var photoTimestamp: String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    return formatter.string(from: Date())
   }
 }
 

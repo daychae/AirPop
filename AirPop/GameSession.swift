@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -13,6 +14,7 @@ final class GameSession: ObservableObject {
   @Published private(set) var bestCombo = 0
   @Published private(set) var handCount = 0
   @Published private(set) var isNewHighScore = false
+  @Published private(set) var resultPhoto: NSImage?
 
   /// Conditions owned by the camera and the link. The session does not reach
   /// for either of them directly; the view injects what it observes.
@@ -26,6 +28,11 @@ final class GameSession: ObservableObject {
   private var countdownTask: Task<Void, Never>?
   private var handsMissingSince: Date?
   private var handsFoundSince: Date?
+
+  /// Installed by ContentView because the session owns the score and scene,
+  /// while the view owns the camera tracker. The image remains in memory until
+  /// the player explicitly chooses where to save it.
+  var resultPhotoProvider: ((_ score: Int, _ bestCombo: Int) -> NSImage?)?
 
   var hasHands: Bool { handCount > 0 }
 
@@ -195,12 +202,14 @@ final class GameSession: ObservableObject {
     combo = 0
     bestCombo = 0
     isNewHighScore = false
+    resultPhoto = nil
     handsMissingSince = nil
     handsFoundSince = nil
   }
 
   private func finishRound() {
     guard phase == .playing || phase.isPaused else { return }
+    resultPhoto = resultPhotoProvider?(score, bestCombo)
     phase = .result
     AudioManager.shared.play(GameSound.roundOver)
     isNewHighScore = score > highScore
