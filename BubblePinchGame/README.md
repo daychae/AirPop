@@ -39,7 +39,8 @@ features for each hand and sends them to `PinchGestureClassifier.mlmodel`:
 - Fingertip confidence
 
 The bundled Core ML random-forest model classifies each sample as `open`,
-`pinch`, or `background`. A prediction needs at least `0.65` confidence and must
-remain consistent for two frames before that hand's stable gesture changes.
-There is no geometry-only pinch fallback, so gameplay pinch events require the
-Core ML model to be loaded and producing predictions.
+`pinch`, or `background`. A pinch prediction needs at least `0.65` confidence.
+Entry takes one frame for responsive popping, while release takes two frames to
+absorb a one-frame dropout. There is no geometry-only pinch fallback, so
+gameplay pinch events require the Core ML model to be loaded and producing
+predictions.

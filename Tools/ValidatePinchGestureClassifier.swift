@@ -48,4 +48,3 @@ for test in tests {
     }
     print("PASS \(test.name): \(label)")
 }
-

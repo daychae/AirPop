@@ -16,7 +16,7 @@ struct HandMetrics {
 
 enum GestureSource: String {
   case coreML = "Core ML"
-  case geometry = "joint geometry"
+  case unavailable = "Core ML unavailable"
 }
 
 struct GesturePrediction {
@@ -57,7 +57,7 @@ final class HandGestureClassifier {
 
   func predict(metrics: HandMetrics) -> GesturePrediction {
     guard let model else {
-      return geometryPrediction(metrics: metrics)
+      return unavailablePrediction
     }
 
     do {
@@ -75,7 +75,7 @@ final class HandGestureClassifier {
         let labelName = model.modelDescription.predictedFeatureName,
         let label = output.featureValue(for: labelName)?.stringValue
       else {
-        return geometryPrediction(metrics: metrics)
+        return unavailablePrediction
       }
 
       let gesture: HandGesture
@@ -98,42 +98,18 @@ final class HandGestureClassifier {
         source: .coreML
       )
     } catch {
-      return geometryPrediction(metrics: metrics)
+      return unavailablePrediction
     }
   }
 
-  /// Distance-rule fallback for when the compiled model is missing or a
-  /// prediction fails. It is less accurate than the classifier, but an
-  /// exhibition that loses its model file should degrade to a playable game
-  /// rather than to a game where no pinch is ever recognized.
-  private func geometryPrediction(metrics: HandMetrics) -> GesturePrediction {
-    let gesture: HandGesture
-    let confidence: Double
-
-    // Boundaries match the retrained model and the runtime's enter threshold.
-    // The prototype's 0.34/0.48 pair left the same gap the model had, so the
-    // fallback would have reintroduced the dead band it exists to survive.
-    if metrics.pinchRatio < 0.50,
-      metrics.indexExtension > 0.55,
-      metrics.fingertipConfidence > 0.3
-    {
-      gesture = .pinch
-      confidence = min(1, (0.50 - metrics.pinchRatio) / 0.50 + 0.55)
-    } else if metrics.pinchRatio >= 0.50,
-      metrics.indexExtension > 0.55,
-      metrics.fingertipConfidence > 0.3
-    {
-      gesture = .open
-      confidence = min(1, (metrics.pinchRatio - 0.50) + 0.60)
-    } else {
-      gesture = .unknown
-      confidence = 0.4
-    }
-
-    return GesturePrediction(
-      gesture: gesture,
-      confidence: confidence,
-      source: .geometry
+  /// A missing model or failed prediction must never become a gameplay pinch.
+  /// The ready screen stays blocked when the model cannot be loaded, while a
+  /// transient prediction failure is represented as an unknown gesture.
+  private var unavailablePrediction: GesturePrediction {
+    GesturePrediction(
+      gesture: .unknown,
+      confidence: 0,
+      source: .unavailable
     )
   }
 

@@ -108,18 +108,16 @@ vertically than horizontally -- and a pinch gap runs mostly vertical while palm
 width runs mostly horizontal. Uncorrected, that inflated the ratio by up to
 that factor and the fingertips had to nearly touch before a pinch registered.
 
-Pinch state uses hysteresis rather than the classifier label alone: it enters
-below a thumb-index gap of 0.50 hand widths, about 4cm on an adult hand, and
-only releases above 0.68, so a hand hovering near the boundary holds its state
-instead of flickering. Entry takes one frame and release takes two, because a
+Pinch state uses the Core ML prediction together with geometric hysteresis. A
+pinch may enter only when the model predicts `pinch` with at least `0.65`
+confidence and the normalized thumb-index gap is no more than `0.85`; it
+releases above `1.03`. Entry takes one frame and release takes two, because a
 late pop feels broken while a one-frame dropout mid-gesture pops a second
-bubble. Press `[` and `]` during play to tighten or loosen the threshold, since
-the right value depends on how far the player stands from the camera.
+bubble. Press `[` and `]` during play to tighten or loosen the geometric gate,
+since the right value depends on how far the player stands from the camera.
 
-When the compiled model is missing or a prediction fails, a joint-distance rule
-takes over. It is less accurate, but an exhibition that loses its model file
-should degrade to a playable game rather than to one where no pinch is ever
-recognized. The start screen names whichever path is in use.
+When the compiled model is missing, the ready screen remains blocked. A failed
+prediction becomes `unknown`; there is no geometry-only gameplay fallback.
 
 Each tracked hand carries its own smoothed pointer, which is held still while
 the fingers close. Pinching moves both fingertips, so an unheld midpoint

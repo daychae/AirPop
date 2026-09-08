@@ -10,13 +10,11 @@ final class CameraHandTracker: NSObject, ObservableObject {
 
   let session = AVCaptureSession()
 
-  /// The geometry fallback keeps the game playable without the compiled model,
-  /// so readiness no longer gates play on Core ML alone.
-  var isMLReady: Bool { true }
+  var isMLReady: Bool { gestureClassifier.isReady }
   var classifierName: String {
     gestureClassifier.isReady
       ? "Vision + Core ML"
-      : "Vision + joint geometry (모델 없음)"
+      : "Core ML model unavailable"
   }
 
   /// Hands Vision found but the confidence gate rejected. Published so the
@@ -32,19 +30,12 @@ final class CameraHandTracker: NSObject, ObservableObject {
   private let requiredReleaseFrameCount = 2
 
   /// Hysteresis on the thumb-index gap, as a fraction of hand scale. Entering
-  /// below 0.45 and only releasing above 0.60 means the ambiguous band in
-  /// between holds whatever the hand was already doing, instead of flickering
-  /// across a single boundary.
+  /// below this threshold and only releasing 0.18 above it means the ambiguous
+  /// band holds the current state instead of flickering across one boundary.
   /// Adjustable at run time from the diagnostics panel, because the value that
   /// feels right depends on how far the player stands from the camera.
   @Published private(set) var pinchEnterRatio: CGFloat = 0.85
   private var pinchExitRatio: CGFloat { pinchEnterRatio + 0.18 }
-
-  /// Fingers this close are a pinch whatever the classifier says. It is the
-  /// backstop for a bad camera angle, not the normal path.
-  /// Geometric backstop. It matters when the operator widens the threshold past
-  /// where the classifier was trained, and when a prediction hiccups.
-  private var geometricPinchRatio: CGFloat { pinchEnterRatio * 0.90 }
 
   /// Only there to reject a closed fist, where the gap between thumb and index
   /// stops meaning anything. A deep pinch curls the index finger and shortens
@@ -522,12 +513,10 @@ final class CameraHandTracker: NSObject, ObservableObject {
       guard looksLikeHand, detection.pinchRatio <= pinchEnterRatio else {
         return (false, 0)
       }
-      // The classifier decides open against pinch inside the range it was
-      // trained on; the threshold above is a hard gate the operator can widen
-      // on site, and the geometric backstop covers the widened band.
+      // Geometry is an additional plausibility gate, never a replacement for
+      // the Core ML decision. A gameplay pinch always requires the model.
       let classifierAgrees = prediction.gesture == .pinch && isConfident
-      let geometryAgrees = detection.pinchRatio <= geometricPinchRatio
-      return (classifierAgrees || geometryAgrees, 0)
+      return (classifierAgrees, 0)
     }
 
     // A hand that has curled out of view should release rather than stay

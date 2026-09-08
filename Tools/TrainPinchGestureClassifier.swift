@@ -107,4 +107,3 @@ try classifier.write(to: outputURL, metadata: nil)
 
 print("Created Core ML model at \(outputURL.path)")
 print("Training error: \(classifier.trainingMetrics.classificationError)")
-
