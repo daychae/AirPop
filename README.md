@@ -7,7 +7,7 @@ four camera-tracked hands.
 
 ## Apps
 
-- **BubblePinchGame (macOS):** Displays the live camera, tracks hands with
+- **AirPop (macOS):** Displays the live camera, tracks hands with
   Vision, classifies pinch gestures with Core ML, and renders the game with
   SpriteKit.
 - **AirPuff (iOS):** Measures microphone input as dBFS, detects a short blow,
@@ -32,10 +32,10 @@ four camera-tracked hands.
 
 ## Run
 
-1. Open `BubblePinchGame.xcodeproj`.
+1. Open `AirPop.xcodeproj`.
 2. Select the `AirPuff` scheme and the connected iPhone, then run once to
    install the companion app.
-3. Select the `BubblePinchGame` scheme and `My Mac`, then run the game.
+3. Select the `AirPop` scheme and `My Mac`, then run the game.
 4. Open AirPuff directly on the iPhone.
 5. Allow camera, microphone, and local-network permissions when requested.
 
@@ -97,8 +97,8 @@ training script the only place the model's behavior can actually be changed,
 since the `.mlmodel` itself is a binary.
 
 ```bash
-swift Tools/TrainPinchGestureClassifier.swift BubblePinchGame/PinchGestureClassifier.mlmodel
-xcrun coremlcompiler compile BubblePinchGame/PinchGestureClassifier.mlmodel /tmp/airpop
+swift Tools/TrainPinchGestureClassifier.swift AirPop/PinchGestureClassifier.mlmodel
+xcrun coremlc compile AirPop/PinchGestureClassifier.mlmodel /tmp/airpop
 swift Tools/ValidatePinchGestureClassifier.swift /tmp/airpop/PinchGestureClassifier.mlmodelc
 ```
 
