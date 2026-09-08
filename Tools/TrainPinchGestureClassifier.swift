@@ -46,20 +46,21 @@ func addSamples(
 // confidence, which meant a thumb-index gap of roughly 2.7cm to 4.3cm produced
 // no state change at all -- and both transitions have to pass through it.
 //
-// pinchRatio is the thumb-index tip distance over hand scale. With a hand scale
-// near 8cm, 0.45 is a gap of about 3.6cm: still clearly a pinch, and roughly
-// where people stop when they are being careful rather than decisive.
+// pinchRatio is the thumb-index tip distance over hand scale, both measured in
+// units of image height so the value does not depend on how the hand is turned.
+// With a hand scale near 8cm, 0.50 is a gap of about 4cm: a natural pinch where
+// the finger pads approach without the tips having to meet.
 addSamples(
     label: "pinch",
     count: 700,
-    pinchRatio: 0.02...0.45,
+    pinchRatio: 0.02...0.50,
     indexExtension: 0.70...1.90,
     thumbExtension: 0.34...1.30
 )
 addSamples(
     label: "open",
     count: 700,
-    pinchRatio: 0.45...1.90,
+    pinchRatio: 0.50...1.90,
     indexExtension: 0.78...1.95,
     thumbExtension: 0.58...1.60
 )

@@ -35,20 +35,26 @@ final class CameraHandTracker: NSObject, ObservableObject {
   /// below 0.45 and only releasing above 0.60 means the ambiguous band in
   /// between holds whatever the hand was already doing, instead of flickering
   /// across a single boundary.
-  private let pinchEnterRatio: CGFloat = 0.45
-  private let pinchExitRatio: CGFloat = 0.60
+  /// Adjustable at run time from the diagnostics panel, because the value that
+  /// feels right depends on how far the player stands from the camera.
+  @Published private(set) var pinchEnterRatio: CGFloat = 0.50
+  private var pinchExitRatio: CGFloat { pinchEnterRatio + 0.18 }
 
   /// Fingers this close are a pinch whatever the classifier says. It is the
   /// backstop for a bad camera angle, not the normal path.
-  private let unmistakablePinchRatio: CGFloat = 0.26
+  /// Geometric backstop. It matters when the operator widens the threshold past
+  /// where the classifier was trained, and when a prediction hiccups.
+  private var geometricPinchRatio: CGFloat { pinchEnterRatio * 0.90 }
 
-  /// Below this the hand is curled into a fist rather than pointing, and the
-  /// thumb-index gap stops meaning anything.
-  private let minimumIndexExtension: CGFloat = 0.55
+  /// Only there to reject a closed fist, where the gap between thumb and index
+  /// stops meaning anything. A deep pinch curls the index finger and shortens
+  /// this measurably, so the floor sits well below a relaxed hand's value.
+  private let minimumIndexExtension: CGFloat = 0.45
   /// Lowered from 0.35: at exhibition distance and lighting, requiring five
   /// joints to each clear 0.35 dropped hands that were plainly visible.
   private let minimumJointConfidence: VNConfidence = 0.30
-  private let maximumTrackMatchDistance: CGFloat = 0.25
+  /// In units of image height, like every other distance here.
+  private let maximumTrackMatchDistance: CGFloat = 0.35
   /// Roughly a quarter second at 30fps. A hand that passes behind the other
   /// player briefly keeps its id and its pinch state, instead of coming back as
   /// a new track whose first stable pinch pops a second bubble.
@@ -63,6 +69,13 @@ final class CameraHandTracker: NSObject, ObservableObject {
     request.maximumHandCount = 4
     return request
   }()
+
+  /// Vision reports 0...1 on both axes, but the frame is not square: at
+  /// 1280x720 the same physical gap measures 1.78x larger vertically than
+  /// horizontally. Since a pinch gap runs mostly vertical while palm width runs
+  /// mostly horizontal, leaving this uncorrected inflated every pinch ratio by
+  /// up to that factor, which is why fingers had to nearly touch to register.
+  private var captureAspectRatio: CGFloat = 16.0 / 9.0
 
   private var configured = false
   private var visionIsBusy = false
@@ -234,6 +247,14 @@ final class CameraHandTracker: NSObject, ObservableObject {
     guard !visionIsBusy else { return }
     visionIsBusy = true
     defer { visionIsBusy = false }
+
+    if let format = CMSampleBufferGetFormatDescription(sampleBuffer) {
+      let dimensions = CMVideoFormatDescriptionGetDimensions(format)
+      if dimensions.height > 0 {
+        captureAspectRatio =
+          CGFloat(dimensions.width) / CGFloat(dimensions.height)
+      }
+    }
 
     let handler = VNImageRequestHandler(
       cmSampleBuffer: sampleBuffer,
@@ -501,9 +522,12 @@ final class CameraHandTracker: NSObject, ObservableObject {
       guard looksLikeHand, detection.pinchRatio <= pinchEnterRatio else {
         return (false, 0)
       }
+      // The classifier decides open against pinch inside the range it was
+      // trained on; the threshold above is a hard gate the operator can widen
+      // on site, and the geometric backstop covers the widened band.
       let classifierAgrees = prediction.gesture == .pinch && isConfident
-      let unmistakable = detection.pinchRatio <= unmistakablePinchRatio
-      return (classifierAgrees || unmistakable, 0)
+      let geometryAgrees = detection.pinchRatio <= geometricPinchRatio
+      return (classifierAgrees || geometryAgrees, 0)
     }
 
     // A hand that has curled out of view should release rather than stay
@@ -559,8 +583,21 @@ final class CameraHandTracker: NSObject, ObservableObject {
     )
   }
 
+  /// Distance in units of image height. Scaling x by the aspect ratio undoes
+  /// Vision's per-axis normalization so a measurement means the same thing
+  /// whichever way the hand is turned.
   private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
-    hypot(a.x - b.x, a.y - b.y)
+    hypot((a.x - b.x) * captureAspectRatio, a.y - b.y)
+  }
+
+  /// Nudges the pinch threshold while the app runs. The useful range is roughly
+  /// a 2cm to 5cm thumb-index gap on an adult hand.
+  func adjustPinchEnterRatio(by delta: CGFloat) {
+    let updated = min(max(pinchEnterRatio + delta, 0.20), 0.85)
+    guard updated != pinchEnterRatio else { return }
+    DispatchQueue.main.async { [weak self] in
+      self?.pinchEnterRatio = updated
+    }
   }
 }
 

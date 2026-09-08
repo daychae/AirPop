@@ -113,18 +113,18 @@ final class HandGestureClassifier {
     // Boundaries match the retrained model and the runtime's enter threshold.
     // The prototype's 0.34/0.48 pair left the same gap the model had, so the
     // fallback would have reintroduced the dead band it exists to survive.
-    if metrics.pinchRatio < 0.45,
+    if metrics.pinchRatio < 0.50,
       metrics.indexExtension > 0.55,
       metrics.fingertipConfidence > 0.3
     {
       gesture = .pinch
-      confidence = min(1, (0.45 - metrics.pinchRatio) / 0.45 + 0.55)
-    } else if metrics.pinchRatio >= 0.45,
+      confidence = min(1, (0.50 - metrics.pinchRatio) / 0.50 + 0.55)
+    } else if metrics.pinchRatio >= 0.50,
       metrics.indexExtension > 0.55,
       metrics.fingertipConfidence > 0.3
     {
       gesture = .open
-      confidence = min(1, (metrics.pinchRatio - 0.45) + 0.60)
+      confidence = min(1, (metrics.pinchRatio - 0.50) + 0.60)
     } else {
       gesture = .unknown
       confidence = 0.4

@@ -26,7 +26,7 @@ let tests = [
     // moving slowly between open and pinch produced no state change at all.
     TestCase(name: "cautious pinch 0.36", expected: "pinch", pinchRatio: 0.36, indexExtension: 1.10, thumbExtension: 0.85),
     TestCase(name: "cautious pinch 0.42", expected: "pinch", pinchRatio: 0.42, indexExtension: 1.10, thumbExtension: 0.85),
-    TestCase(name: "parting fingers 0.50", expected: "open", pinchRatio: 0.50, indexExtension: 1.10, thumbExtension: 0.85),
+    TestCase(name: "natural pinch 0.48", expected: "pinch", pinchRatio: 0.48, indexExtension: 1.10, thumbExtension: 0.85),
     TestCase(name: "boundary open 0.56", expected: "open", pinchRatio: 0.56, indexExtension: 1.15, thumbExtension: 0.90)
 ]
 

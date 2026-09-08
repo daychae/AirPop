@@ -102,11 +102,19 @@ xcrun coremlcompiler compile BubblePinchGame/PinchGestureClassifier.mlmodel /tmp
 swift Tools/ValidatePinchGestureClassifier.swift /tmp/airpop/PinchGestureClassifier.mlmodelc
 ```
 
-Pinch state uses hysteresis rather than the label alone: it enters below a
-thumb-index gap of 0.45 hand widths and only releases above 0.60, so a hand
-hovering near the boundary holds its state instead of flickering. Entry takes
-one frame and release takes two, because a late pop feels broken while a
-one-frame dropout mid-gesture pops a second bubble.
+Every distance is measured in units of image height. Vision normalizes each
+axis independently, so at 1280x720 the same physical gap measures 1.78x larger
+vertically than horizontally -- and a pinch gap runs mostly vertical while palm
+width runs mostly horizontal. Uncorrected, that inflated the ratio by up to
+that factor and the fingertips had to nearly touch before a pinch registered.
+
+Pinch state uses hysteresis rather than the classifier label alone: it enters
+below a thumb-index gap of 0.50 hand widths, about 4cm on an adult hand, and
+only releases above 0.68, so a hand hovering near the boundary holds its state
+instead of flickering. Entry takes one frame and release takes two, because a
+late pop feels broken while a one-frame dropout mid-gesture pops a second
+bubble. Press `[` and `]` during play to tighten or loosen the threshold, since
+the right value depends on how far the player stands from the camera.
 
 When the compiled model is missing or a prediction fails, a joint-distance rule
 takes over. It is less accurate, but an exhibition that loses its model file

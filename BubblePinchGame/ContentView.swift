@@ -50,10 +50,26 @@ struct ContentView: View {
     .background {
       // Hidden control so `D` toggles the diagnostics panel. It stays off by
       // default: the numbers must not cover the game during an exhibition.
-      Button("Toggle diagnostics") {
-        showsDiagnostics.toggle()
+      Group {
+        Button("Toggle diagnostics") {
+          showsDiagnostics.toggle()
+        }
+        .keyboardShortcut("d", modifiers: [])
+
+        // The threshold that feels right depends on how far the player stands
+        // from the camera, so it is adjustable on site rather than rebuilt.
+        Button("Looser pinch") {
+          tracker.adjustPinchEnterRatio(by: 0.03)
+          showsDiagnostics = true
+        }
+        .keyboardShortcut("]", modifiers: [])
+
+        Button("Tighter pinch") {
+          tracker.adjustPinchEnterRatio(by: -0.03)
+          showsDiagnostics = true
+        }
+        .keyboardShortcut("[", modifiers: [])
       }
-      .keyboardShortcut("d", modifiers: [])
       .opacity(0)
     }
     .onAppear {
@@ -431,7 +447,7 @@ struct ContentView: View {
             diagnosticRow("GAPS", gapSummary)
             diagnosticRow("STRENGTH", strengthSummary)
             diagnosticRow("HANDS", handSummary)
-            diagnosticRow("GESTURE", tracker.classifierName)
+            diagnosticRow("GESTURE", gestureSummary)
           }
           .padding(14)
           .background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
@@ -532,6 +548,15 @@ struct ContentView: View {
       .joined(separator: " ")
     return "\(tracker.poses.count) tracked · \(pinching) pinching · "
       + "\(tracker.rejectedHandCount) rejected · ratio [\(ratios)]"
+  }
+
+  private var gestureSummary: String {
+    String(
+      format: "enter %.2f · release %.2f · %@  ( [ / ] to adjust )",
+      tracker.pinchEnterRatio,
+      tracker.pinchEnterRatio + 0.18,
+      tracker.classifierName
+    )
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {
