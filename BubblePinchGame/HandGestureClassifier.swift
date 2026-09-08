@@ -14,9 +14,15 @@ struct HandMetrics {
   let fingertipConfidence: Double
 }
 
+enum GestureSource: String {
+  case coreML = "Core ML"
+  case unavailable = "Core ML unavailable"
+}
+
 struct GesturePrediction {
   let gesture: HandGesture
   let confidence: Double
+  let source: GestureSource
 }
 
 final class HandGestureClassifier {
@@ -51,7 +57,7 @@ final class HandGestureClassifier {
 
   func predict(metrics: HandMetrics) -> GesturePrediction {
     guard let model else {
-      return GesturePrediction(gesture: .unknown, confidence: 0)
+      return unavailablePrediction
     }
 
     do {
@@ -69,7 +75,7 @@ final class HandGestureClassifier {
         let labelName = model.modelDescription.predictedFeatureName,
         let label = output.featureValue(for: labelName)?.stringValue
       else {
-        return GesturePrediction(gesture: .unknown, confidence: 0)
+        return unavailablePrediction
       }
 
       let gesture: HandGesture
@@ -88,11 +94,23 @@ final class HandGestureClassifier {
           for: label,
           output: output,
           probabilityName: model.modelDescription.predictedProbabilitiesName
-        )
+        ),
+        source: .coreML
       )
     } catch {
-      return GesturePrediction(gesture: .unknown, confidence: 0)
+      return unavailablePrediction
     }
+  }
+
+  /// A missing model or failed prediction must never become a gameplay pinch.
+  /// The ready screen stays blocked when the model cannot be loaded, while a
+  /// transient prediction failure is represented as an unknown gesture.
+  private var unavailablePrediction: GesturePrediction {
+    GesturePrediction(
+      gesture: .unknown,
+      confidence: 0,
+      source: .unavailable
+    )
   }
 
   private func probability(

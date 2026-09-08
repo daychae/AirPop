@@ -13,8 +13,8 @@ struct HandOverlayView: View {
                 let index = coordinateMapper.viewPoint(
                     fromCaptureDevicePoint: pose.indexTip
                 ),
-                let pinch = coordinateMapper.viewPoint(
-                    fromCaptureDevicePoint: pose.pinchPoint
+                let pointer = coordinateMapper.viewPoint(
+                    fromCaptureDevicePoint: pose.pointer
                 ) {
 
                     Path { path in
@@ -29,16 +29,30 @@ struct HandOverlayView: View {
                     jointDot(at: thumb, color: .pink)
                     jointDot(at: index, color: .cyan)
 
+                    // A ring, not a dot: the aim is held still while the
+                    // fingers close, so it has to read as its own thing rather
+                    // than as a point that failed to follow the hand.
                     Circle()
-                        .fill(pose.isPinching ? Color.green : Color.white)
-                        .frame(width: pose.isPinching ? 22 : 14,
-                               height: pose.isPinching ? 22 : 14)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.black.opacity(0.45), lineWidth: 1)
+                        .fill(
+                            pose.isPinching
+                                ? Color.green.opacity(0.42)
+                                : Color.white.opacity(0.16)
                         )
-                        .position(pinch)
+                        .overlay(
+                            Circle().stroke(
+                                pose.isPinching ? Color.green : Color.white.opacity(0.85),
+                                lineWidth: pose.isPinching ? 3.5 : 2
+                            )
+                        )
+                        .frame(width: pose.isPinching ? 34 : 24,
+                               height: pose.isPinching ? 34 : 24)
+                        .position(pointer)
                         .animation(.easeOut(duration: 0.08), value: pose.isPinching)
+
+                    Text("\(pose.id)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .position(x: pointer.x, y: pointer.y - 26)
                 }
             }
         }

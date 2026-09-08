@@ -6,12 +6,17 @@ struct BlowMeterView: View {
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var detector = BlowDetector()
   @StateObject private var connection = AirPopConnection()
+  @State private var manualHost = ""
+  @State private var manualPort = String(AirPopLink.preferredPort.rawValue)
+  @State private var showsManualEntry = false
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 18) {
+          roleCard
           connectionCard
+          diagnosticsCard
           statusCard
           meterCard
           measurementGrid
@@ -25,15 +30,25 @@ struct BlowMeterView: View {
       .navigationTitle("AirPuff")
     }
     .onAppear {
+      // Straight from the detection state machine to the transport. Routing
+      // this through a published property and .onChange meant nothing was sent
+      // until the blow had already finished.
+      detector.onEvent = { [connection] type, strength in
+        connection.sendBlowEvent(type, strength: strength)
+      }
       connection.start()
       detector.requestPermissionAndStart()
+    }
+    .onChange(of: detector.isReadyForPlay) { _, ready in
+      connection.sendStatus(micReady: ready)
+    }
+    .onChange(of: connection.isConnected) { _, connected in
+      // The Mac forgets readiness when a session ends, so re-announce it.
+      if connected { connection.sendStatus(micReady: detector.isReadyForPlay) }
     }
     .onDisappear {
       connection.stop()
       detector.stopMonitoring()
-    }
-    .onChange(of: detector.completedBlowSequence) { _, _ in
-      connection.sendBlow(strength: detector.lastBlowStrength)
     }
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active {
@@ -46,11 +61,72 @@ struct BlowMeterView: View {
     }
   }
 
+  /// The player holding this phone is looking at the Mac screen, so this card
+  /// only has to answer two things: what is my job, and what is the game doing
+  /// right now.
+  private var roleCard: some View {
+    HStack(spacing: 14) {
+      Text("A")
+        .font(.system(size: 30, weight: .black, design: .rounded))
+        .foregroundStyle(.orange)
+        .frame(width: 54, height: 54)
+        .background(.orange.opacity(0.15), in: Circle())
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text("불어서 버블 만들기")
+          .font(.headline)
+        Text("B 플레이어가 Mac 화면에서 손으로 터뜨립니다.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Spacer()
+    }
+    .padding()
+    .background(.background, in: RoundedRectangle(cornerRadius: 18))
+    .overlay(alignment: .bottom) {
+      if let roundText = roundStateText {
+        Text(roundText)
+          .font(.caption.bold())
+          .foregroundStyle(.white)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 6)
+          .background(roundStateTint, in: Capsule())
+          .offset(y: 12)
+      }
+    }
+    .padding(.bottom, connection.remotePhase == nil ? 0 : 12)
+  }
+
+  private var roundStateText: String? {
+    switch connection.remotePhase {
+    case .none: return nil
+    case .ready: return "Mac에서 시작을 기다리는 중"
+    case .countdown:
+      return connection.remoteCountdown.map { "곧 시작합니다 · \($0)" }
+        ?? "곧 시작합니다"
+    case .playing: return "진행 중 · 지금 불어 주세요"
+    case .pausedHandsLost: return "일시정지 · B의 손을 인식하지 못했습니다"
+    case .pausedPeerLost: return "일시정지 · 연결 확인 중"
+    case .result: return "라운드 종료"
+    }
+  }
+
+  private var roundStateTint: Color {
+    switch connection.remotePhase {
+    case .playing: return .green
+    case .countdown: return .cyan
+    case .pausedHandsLost, .pausedPeerLost: return .orange
+    case .result: return .purple
+    default: return .gray
+    }
+  }
+
   private var connectionCard: some View {
     HStack(spacing: 12) {
-      Image(systemName: connection.isConnected ? "macbook.and.iphone" : "wifi")
+      Image(systemName: connection.isLinkUsable ? "macbook.and.iphone" : "wifi")
         .font(.title2)
-        .foregroundStyle(connection.isConnected ? .green : .orange)
+        .foregroundStyle(connectionTint)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(connection.statusTitle)
@@ -72,6 +148,141 @@ struct BlowMeterView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding()
     .background(.background, in: RoundedRectangle(cornerRadius: 18))
+  }
+
+  /// Exercises the exact send path the blow stream will use, without the
+  /// microphone. This separates "the two devices cannot reach each other" from
+  /// "the link is fine but detection is slow" before any tuning starts.
+  private var diagnosticsCard: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack {
+        Label("연결 테스트", systemImage: "waveform.path.ecg")
+          .font(.headline)
+        Spacer()
+        Button("초기화") {
+          connection.resetCounters()
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+
+      Text("마이크 권한 없이도 이 카드만으로 연결과 지연을 확인할 수 있습니다.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      HStack(spacing: 10) {
+        Button {
+          connection.sendPing()
+        } label: {
+          Label("단발 전송", systemImage: "paperplane.fill")
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(!connection.isLinkUsable)
+
+        Button {
+          if connection.isStreaming {
+            connection.stopTestStream()
+          } else {
+            connection.startTestStream()
+          }
+        } label: {
+          Label(
+            connection.isStreaming ? "20Hz 정지" : "20Hz 연속",
+            systemImage: connection.isStreaming ? "stop.fill" : "dot.radiowaves.right"
+          )
+          .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(connection.isStreaming ? .red : .cyan)
+        .disabled(!connection.isLinkUsable)
+      }
+
+      HStack(spacing: 10) {
+        measurementCell(title: "전송", value: "\(connection.sentCount)", unit: "회")
+        measurementCell(title: "응답", value: "\(connection.ackCount)", unit: "회")
+        measurementCell(title: "폐기", value: "\(connection.droppedCount)", unit: "개")
+        measurementCell(title: "불기", value: "\(connection.blowEventCount)", unit: "회")
+      }
+
+      HStack(spacing: 10) {
+        measurementCell(
+          title: "RTT 최근",
+          value: rttText(connection.rtt.latest),
+          unit: "ms"
+        )
+        measurementCell(
+          title: "중앙값",
+          value: rttText(connection.rtt.p50),
+          unit: "ms"
+        )
+        measurementCell(
+          title: "최대",
+          value: rttText(connection.rtt.maximum),
+          unit: "ms"
+        )
+      }
+
+      DisclosureGroup("직접 연결", isExpanded: $showsManualEntry) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Bonjour 검색이 막힌 네트워크에서 Mac 화면의 주소를 입력합니다.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          HStack(spacing: 8) {
+            TextField("192.168.0.10", text: $manualHost)
+              .textFieldStyle(.roundedBorder)
+              .keyboardType(.numbersAndPunctuation)
+              .autocorrectionDisabled()
+              .textInputAutocapitalization(.never)
+
+            TextField("포트", text: $manualPort)
+              .textFieldStyle(.roundedBorder)
+              .keyboardType(.numberPad)
+              .frame(width: 78)
+          }
+
+          HStack(spacing: 10) {
+            Button("이 주소로 연결") {
+              guard let port = UInt16(manualPort) else { return }
+              connection.connectManually(host: manualHost, port: port)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(manualHost.isEmpty || UInt16(manualPort) == nil)
+
+            if connection.manualTarget != nil {
+              Button("자동 검색으로") {
+                connection.clearManualTarget()
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+
+          if let target = connection.manualTarget {
+            Text("직접 연결 대상: \(target)")
+              .font(.caption.monospaced())
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(.top, 8)
+      }
+      .font(.subheadline.weight(.semibold))
+    }
+    .padding()
+    .background(.background, in: RoundedRectangle(cornerRadius: 18))
+  }
+
+  private func rttText(_ value: Double) -> String {
+    value > 0 ? String(format: "%.1f", value) : "—"
+  }
+
+  private var connectionTint: Color {
+    switch connection.state {
+    case .connected: return .green
+    case .unresponsive: return .red
+    case .failed: return .red
+    default: return .orange
+    }
   }
 
   private var statusCard: some View {

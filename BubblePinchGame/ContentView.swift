@@ -7,6 +7,8 @@ struct ContentView: View {
   @StateObject private var cameraCoordinates = CameraCoordinateMapper()
   @StateObject private var game = GameSession()
   @StateObject private var blowServer = AirPopBonjourServer()
+  @State private var showsDiagnostics = false
+  @State private var hostAddress: HostAddress.Entry?
 
   var body: some View {
     ZStack {
@@ -39,21 +41,85 @@ struct ContentView: View {
       }
 
       phaseOverlay
+
+      if showsDiagnostics {
+        diagnosticsOverlay
+      }
     }
     .background(.black)
-    .onAppear {
-      blowServer.start { strength in
-        game.handleBlow(strength: strength)
+    .background {
+      // Hidden control so `D` toggles the diagnostics panel. It stays off by
+      // default: the numbers must not cover the game during an exhibition.
+      Group {
+        Button("Toggle diagnostics") {
+          showsDiagnostics.toggle()
+        }
+        .keyboardShortcut("d", modifiers: [])
+
+        // The threshold that feels right depends on how far the player stands
+        // from the camera, so it is adjustable on site rather than rebuilt.
+        Button("Looser pinch") {
+          tracker.adjustPinchEnterRatio(by: 0.03)
+          showsDiagnostics = true
+        }
+        .keyboardShortcut("]", modifiers: [])
+
+        Button("Tighter pinch") {
+          tracker.adjustPinchEnterRatio(by: -0.03)
+          showsDiagnostics = true
+        }
+        .keyboardShortcut("[", modifiers: [])
       }
+      .opacity(0)
+    }
+    .onAppear {
+      hostAddress = HostAddress.preferred()
+      game.setModelReady(tracker.isMLReady)
+      AudioManager.shared.preload()
+      blowServer.start(
+        onBlowStarted: { strength in
+          game.handleBlowStarted(strength: strength)
+        },
+        onBlowState: { isBlowing, strength in
+          game.updateBlowState(isBlowing: isBlowing, strength: strength)
+        })
     }
     .onDisappear {
       blowServer.stop()
     }
+    .onChange(of: blowServer.listenerPort) { _, _ in
+      hostAddress = HostAddress.preferred()
+    }
+    .onChange(of: blowServer.isPeerConnected) { _, connected in
+      game.setPeerConnected(connected)
+      // A phone joining mid-round would otherwise show nothing until the next
+      // phase change, which on a 30 second round can be most of it.
+      if connected {
+        blowServer.sendGameState(
+          game.phase.wire,
+          countdownValue: game.phase.countdownValue
+        )
+      }
+    }
+    .onChange(of: blowServer.isPeerMicReady) { _, ready in
+      game.setPeerMicReady(ready)
+    }
+    .onChange(of: game.phase) { _, phase in
+      // The Mac owns round state, so the phone is told rather than asked.
+      blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
+    }
+    .onChange(of: showsDiagnostics) { _, isShown in
+      // Interfaces come and go while the app runs, most notably when a USB
+      // cable is plugged in, so re-read rather than trusting the launch value.
+      if isShown { hostAddress = HostAddress.preferred() }
+    }
     .onReceive(tracker.$poses) { poses in
       let viewPoints = Dictionary(
         uniqueKeysWithValues: poses.compactMap { pose in
+          // The stabilized aim, not the raw fingertip midpoint: closing a
+          // pinch moves the midpoint several bubble radii.
           cameraCoordinates.viewPoint(
-            fromCaptureDevicePoint: pose.pinchPoint
+            fromCaptureDevicePoint: pose.pointer
           ).map { (pose.id, $0) }
         })
       game.handleHandPoses(poses, viewPoints: viewPoints)
@@ -134,6 +200,20 @@ struct ContentView: View {
           }
           .padding(12)
         }
+      case .pausedPeerLost:
+        GlassPanel {
+          VStack(spacing: 14) {
+            Image(systemName: "iphone.slash")
+              .font(.system(size: 44))
+              .foregroundStyle(.orange)
+            Text("아이폰 연결이 끊겼습니다")
+              .font(.title.bold())
+            Text("A 플레이어의 AirPuff 앱을 확인해 주세요.\n다시 연결되면 자동으로 계속됩니다.")
+              .multilineTextAlignment(.center)
+              .foregroundStyle(.secondary)
+          }
+          .padding(12)
+        }
       case .result:
         resultPanel
       }
@@ -156,34 +236,41 @@ struct ContentView: View {
         Text("바람으로 만들고, 손으로 터뜨리는 버블 게임")
           .font(.title3.weight(.semibold))
 
-        Text("엄지와 검지를 붙여 버블을 터뜨리세요\n폭탄은 -3점 · 제한 시간은 30초")
-          .multilineTextAlignment(.center)
-          .foregroundStyle(.secondary)
-
-        HStack(spacing: 10) {
-          Circle()
-            .fill(game.hasHands ? Color.green : Color.orange)
-            .frame(width: 10, height: 10)
-          Text(
-            game.hasHands
-              ? "\(game.handCount)개의 손 인식 완료"
-              : "카메라에 한 손 이상을 보여주세요"
+        HStack(spacing: 22) {
+          roleBadge(
+            "A",
+            title: "아이폰으로 만들기",
+            detail: "마이크에 후 불기",
+            tint: .orange
           )
-          .font(.headline)
+          roleBadge(
+            "B",
+            title: "손으로 터뜨리기",
+            detail: "엄지와 검지 붙이기",
+            tint: .cyan
+          )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.30), in: Capsule())
 
-        blowStatusPill
+        VStack(alignment: .leading, spacing: 7) {
+          readinessRow("B · 손 인식", isReady: game.hasHands,
+            detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
+          readinessRow("B · 제스처 인식", isReady: game.isModelReady,
+            detail: tracker.classifierName)
+          readinessRow("A · 아이폰 연결", isReady: game.isPeerConnected,
+            detail: blowStatus.label)
+          readinessRow("A · 마이크 보정", isReady: game.isPeerMicReady,
+            detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
 
-        Text(
-          tracker.isMLReady
-            ? "입력 엔진: \(tracker.classifierName) · 최대 4손"
-            : tracker.classifierName
-        )
-        .font(.caption)
-        .foregroundStyle(tracker.isMLReady ? .white.opacity(0.64) : .red)
+        if let hostAddress, blowServer.listenerPort > 0 {
+          Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.5))
+            .textSelection(.enabled)
+        }
 
         Button("게임 시작") {
           game.beginCountdown()
@@ -191,10 +278,50 @@ struct ContentView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .tint(.cyan)
-        .disabled(!game.hasHands || !tracker.isMLReady)
+        .disabled(!game.canStart)
         .keyboardShortcut(.space, modifiers: [])
       }
       .padding(.horizontal, 20)
+    }
+  }
+
+  private func roleBadge(
+    _ letter: String,
+    title: String,
+    detail: String,
+    tint: Color
+  ) -> some View {
+    VStack(spacing: 5) {
+      Text(letter)
+        .font(.system(size: 26, weight: .black, design: .rounded))
+        .foregroundStyle(tint)
+        .frame(width: 46, height: 46)
+        .background(tint.opacity(0.16), in: Circle())
+      Text(title)
+        .font(.subheadline.bold())
+      Text(detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .frame(width: 150)
+  }
+
+  private func readinessRow(
+    _ title: String,
+    isReady: Bool,
+    detail: String
+  ) -> some View {
+    HStack(spacing: 10) {
+      Image(systemName: isReady ? "checkmark.circle.fill" : "circle")
+        .foregroundStyle(isReady ? .green : .white.opacity(0.35))
+      Text(title)
+        .font(.subheadline.weight(.semibold))
+        .frame(width: 132, alignment: .leading)
+      Text(detail)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.6))
+        .lineLimit(1)
+      Spacer(minLength: 0)
     }
   }
 
@@ -271,18 +398,165 @@ struct ContentView: View {
   private var blowStatusPill: some View {
     HStack(spacing: 8) {
       Circle()
-        .fill(blowServer.connectedDeviceCount > 0 ? Color.green : Color.orange)
+        .fill(blowStatus.color)
         .frame(width: 9, height: 9)
-      Text(
-        blowServer.connectedDeviceCount > 0
-          ? "\(blowServer.connectedDeviceCount) IPHONE CONNECTED"
-          : (blowServer.isAdvertising ? "IPHONE 대기 중" : "BONJOUR 시작 중")
-      )
-      .font(.caption.bold())
+      Text(blowStatus.label)
+        .font(.caption.bold())
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
     .background(.black.opacity(0.52), in: Capsule())
+  }
+
+  /// "Connected" and "actually receiving input" are different states, and only
+  /// separating them makes a silent phone diagnosable at a glance.
+  private var blowStatus: (color: Color, label: String) {
+    switch blowServer.linkState {
+    case .connected:
+      if blowServer.isBlowing {
+        return (.cyan, "불기 중 · \(Int(blowServer.latestStrength * 100))%")
+      }
+      return blowServer.isLive
+        ? (.green, "IPHONE 활성")
+        : (.yellow, "IPHONE 연결됨 · 입력 없음")
+    case .advertising:
+      return (.orange, "IPHONE 대기 중")
+    case .starting, .stopped:
+      return (.orange, "BONJOUR 시작 중")
+    case .protocolMismatch(let version):
+      return (.red, "앱 버전 불일치 (v\(version))")
+    case .failed:
+      return (.red, "네트워크 오류")
+    }
+  }
+
+  /// Hidden behind `D`. Everything here answers one question: is a silent Mac
+  /// silent because nothing arrived, or because what arrived was rejected?
+  private var diagnosticsOverlay: some View {
+    VStack {
+      HStack {
+        Spacer()
+        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+          VStack(alignment: .leading, spacing: 3) {
+            diagnosticRow("LINK", linkSummary)
+            diagnosticRow("ADDRESS", addressSummary)
+            diagnosticRow("PATH", blowServer.pathDescription ?? "—")
+            diagnosticRow("RECEIVED", receivedSummary)
+            diagnosticRow("INTERVAL", intervalSummary)
+            diagnosticRow("RTT", rttSummary)
+            diagnosticRow("GAPS", gapSummary)
+            diagnosticRow("STRENGTH", strengthSummary)
+            diagnosticRow("HANDS", handSummary)
+            diagnosticRow("GESTURE", gestureSummary)
+          }
+          .padding(14)
+          .background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
+          .overlay {
+            RoundedRectangle(cornerRadius: 14)
+              .stroke(.white.opacity(0.14), lineWidth: 1)
+          }
+        }
+      }
+      Spacer()
+    }
+    .padding(20)
+    .allowsHitTesting(false)
+  }
+
+  private func diagnosticRow(_ title: String, _ value: String) -> some View {
+    HStack(spacing: 10) {
+      Text(title)
+        .font(.system(size: 10, weight: .bold, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.45))
+        .frame(width: 74, alignment: .leading)
+      Text(value)
+        .font(.system(size: 11, design: .monospaced))
+        .foregroundStyle(.white)
+    }
+  }
+
+  private var linkSummary: String {
+    switch blowServer.linkState {
+    case .stopped: return "stopped"
+    case .starting: return "starting"
+    case .advertising: return "advertising · no peer"
+    case .connected:
+      let name = blowServer.peerName ?? "peer"
+      let session = blowServer.sessionShortID ?? "??????"
+      let mic = blowServer.isPeerMicReady ? "mic ready" : "mic not ready"
+      return "\(blowServer.isLive ? "live" : "idle") · \(name) (\(session)) · \(mic)"
+    case .protocolMismatch(let version):
+      return "PROTOCOL MISMATCH · peer v\(version), self v\(AirPopLink.protocolVersion)"
+    case .failed(let message): return "failed · \(message)"
+    }
+  }
+
+  private var addressSummary: String {
+    guard blowServer.listenerPort > 0 else { return "—" }
+    let host = hostAddress.map { "\($0.address) (\($0.interface))" } ?? "?"
+    return "\(host) : \(String(blowServer.listenerPort))"
+  }
+
+  private var receivedSummary: String {
+    guard let last = blowServer.lastMessageAtMillis else {
+      return "\(blowServer.receivedCount) msgs · never"
+    }
+    let elapsed = Int(AirPopClock.elapsed(since: last).rounded())
+    return "\(blowServer.receivedCount) msgs · \(elapsed) ms ago"
+  }
+
+  private var intervalSummary: String {
+    let stats = blowServer.intervalStats
+    guard stats.count > 0 else { return "—" }
+    return String(
+      format: "p50 %.0f · p95 %.0f · max %.0f ms (n=%d)",
+      stats.p50, stats.p95, stats.maximum, stats.count
+    )
+  }
+
+  private var rttSummary: String {
+    guard let rtt = blowServer.peerReportedRTT else { return "—" }
+    return String(format: "%.1f ms (peer reported)", rtt)
+  }
+
+  private var gapSummary: String {
+    // Gaps should stay at zero: coalesced values never consume a sequence
+    // number, so anything here is loss or a bug rather than normal throttling.
+    "\(blowServer.sequenceGapCount) (expect 0) · coalesced by peer: "
+      + "\(blowServer.peerDroppedCount)"
+  }
+
+  private var strengthSummary: String {
+    String(
+      format: "%.2f · %@ · %@",
+      blowServer.latestStrength,
+      blowServer.isBlowing ? "blowing" : "idle",
+      blowServer.isLive ? "live" : "stale"
+    )
+  }
+
+  /// Rejected hands are the number Vision found but the confidence gate threw
+  /// away. A steady stream of them at the venue means the threshold, not the
+  /// lighting, is what needs adjusting.
+  private var handSummary: String {
+    let pinching = tracker.poses.filter(\.isPinching).count
+    // The live pinch ratio is what the enter and exit thresholds are compared
+    // against, so showing it turns tuning at the venue into reading a number
+    // rather than guessing.
+    let ratios = tracker.poses
+      .map { String(format: "%.2f", $0.pinchRatio) }
+      .joined(separator: " ")
+    return "\(tracker.poses.count) tracked · \(pinching) pinching · "
+      + "\(tracker.rejectedHandCount) rejected · ratio [\(ratios)]"
+  }
+
+  private var gestureSummary: String {
+    String(
+      format: "enter %.2f · release %.2f · %@  ( [ / ] to adjust )",
+      tracker.pinchEnterRatio,
+      tracker.pinchEnterRatio + 0.18,
+      tracker.classifierName
+    )
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {

@@ -7,7 +7,10 @@ struct HandPose: Equatable, Identifiable {
     let id: Int
     let thumbTip: CGPoint
     let indexTip: CGPoint
-    let pinchPoint: CGPoint
+    /// Where this hand is aiming. Smoothed, and held still while the fingers
+    /// close, so the act of pinching does not drag the aim off the target.
+    let pointer: CGPoint
+
     let pinchRatio: CGFloat
     let isPinching: Bool
     let pinchBegan: Bool

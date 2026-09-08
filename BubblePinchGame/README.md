@@ -22,7 +22,10 @@ bubbles so the full round can be tested.
 - Automatic pause when every hand has been missing for 1.5 seconds
 - Procedural SpriteKit vector bubbles and pop/bomb effects
 - AirPuff iPhone companion with live dBFS blow detection and calibration
-- Bonjour discovery and strength-only event transfer to the Mac game
+- Bonjour discovery on a fixed port, with manual host entry as a fallback
+- Session-scoped link that rejects input from a replaced connection
+- Diagnostics panel behind the `D` key: arrival intervals, round trip, gaps,
+  and the physical path in use
 - `GameScene.spawnBubble(strength:)` entry point for received iPhone events
 
 ## Machine learning pipeline
@@ -36,7 +39,8 @@ features for each hand and sends them to `PinchGestureClassifier.mlmodel`:
 - Fingertip confidence
 
 The bundled Core ML random-forest model classifies each sample as `open`,
-`pinch`, or `background`. A prediction needs at least `0.65` confidence and must
-remain consistent for two frames before that hand's stable gesture changes.
-There is no geometry-only pinch fallback, so gameplay pinch events require the
-Core ML model to be loaded and producing predictions.
+`pinch`, or `background`. A pinch prediction needs at least `0.65` confidence.
+Entry takes one frame for responsive popping, while release takes two frames to
+absorb a one-frame dropout. There is no geometry-only pinch fallback, so
+gameplay pinch events require the Core ML model to be loaded and producing
+predictions.
