@@ -37,7 +37,7 @@ final class CameraHandTracker: NSObject, ObservableObject {
   /// across a single boundary.
   /// Adjustable at run time from the diagnostics panel, because the value that
   /// feels right depends on how far the player stands from the camera.
-  @Published private(set) var pinchEnterRatio: CGFloat = 0.50
+  @Published private(set) var pinchEnterRatio: CGFloat = 0.85
   private var pinchExitRatio: CGFloat { pinchEnterRatio + 0.18 }
 
   /// Fingers this close are a pinch whatever the classifier says. It is the
