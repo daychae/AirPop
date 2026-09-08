@@ -24,7 +24,6 @@
 		A10000000000000000000022 /* AirPopLinkStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* AirPopLinkStats.swift */; };
 		A10000000000000000000023 /* HostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HostAddress.swift */; };
 		A10000000000000000000024 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* AudioManager.swift */; };
-		A10000000000000000000025 /* ResultPhotoComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* ResultPhotoComposer.swift */; };
 		A10000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */; };
 		A10000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */; };
 		A10000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */; };
@@ -61,7 +60,6 @@
 		A20000000000000000000020 /* AirPopLinkStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopLinkStats.swift; sourceTree = "<group>"; };
 		A20000000000000000000021 /* HostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAddress.swift; sourceTree = "<group>"; };
 		A20000000000000000000022 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
-		A20000000000000000000023 /* ResultPhotoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPhotoComposer.swift; sourceTree = "<group>"; };
 		A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_01.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_02.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_03.wav; sourceTree = SOURCE_ROOT; };
@@ -128,7 +126,6 @@
 				A2000000000000000000000F /* AirPopBonjourServer.swift */,
 				A20000000000000000000021 /* HostAddress.swift */,
 				A20000000000000000000022 /* AudioManager.swift */,
-				A20000000000000000000023 /* ResultPhotoComposer.swift */,
 				A20000000000000000000008 /* Info.plist */,
 				A20000000000000000000009 /* AirPop.entitlements */,
 				A2000000000000000000000A /* README.md */,
@@ -310,7 +307,6 @@
 				A10000000000000000000022 /* AirPopLinkStats.swift in Sources */,
 				A10000000000000000000023 /* HostAddress.swift in Sources */,
 				A10000000000000000000024 /* AudioManager.swift in Sources */,
-				A10000000000000000000025 /* ResultPhotoComposer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

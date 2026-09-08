@@ -13,10 +13,6 @@ four camera-tracked hands.
 - **AirPuff (iOS):** Measures microphone input as dBFS, detects a short blow,
   and sends only the normalized strength value to the Mac.
 
-At the end of a round, AirPop creates an in-memory result photo by compositing
-the mirrored camera frame with the live SpriteKit bubble layer and a score
-footer. A file is written only when the player chooses **PNG 저장**.
-
 ## Apple technologies
 
 - SwiftUI

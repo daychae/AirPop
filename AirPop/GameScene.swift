@@ -174,14 +174,6 @@ final class GameScene: SKScene {
     cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
   }
 
-  /// Renders only the transparent SpriteKit layer. ResultPhotoComposer places
-  /// it over the mirrored camera frame, preserving the actual bubble graphics
-  /// without requiring Screen Recording permission.
-  func snapshotImage() -> CGImage? {
-    guard let texture = view?.texture(from: self) else { return nil }
-    return texture.cgImage()
-  }
-
   func prepareForReady() {
     isRoundRunning = false
     isRoundPaused = false
@@ -578,10 +570,8 @@ final class GameScene: SKScene {
     isRoundRunning = false
     isRoundPaused = false
     onTimeChanged?(0)
-    // Capture callbacks run before nodes begin fading so the result photo
-    // preserves the final camera-and-bubble frame.
-    onRoundEnded?()
     removeAllBubbles(animated: true)
+    onRoundEnded?()
   }
 
   private func removeAllBubbles(animated: Bool) {
