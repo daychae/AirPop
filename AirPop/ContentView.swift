@@ -410,17 +410,13 @@ struct ContentView: View {
         }
 
         if let photo = game.resultPhoto {
+          // PhotoFrameCool is a square 1200x1200 card with its own border
+          // and bubbles baked in, so the preview just needs to size it --
+          // no extra clip shape or stroke on top of the frame art itself.
           Image(nsImage: photo)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: 460, maxHeight: 250)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay {
-              // A soft white rim, matching the frosted-glass border used on
-              // the bubbles and on the Figma photo-card treatment.
-              RoundedRectangle(cornerRadius: 18)
-                .stroke(.white.opacity(0.82), lineWidth: 1.5)
-            }
+            .frame(maxWidth: 320, maxHeight: 320)
             .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
           HStack(spacing: 12) {

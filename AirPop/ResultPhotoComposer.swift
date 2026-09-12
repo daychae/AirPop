@@ -1,16 +1,18 @@
 import AppKit
 import CoreGraphics
 
-/// AirPop's lavender ("Pop Lilac") and AirPuff's sky blue from the shared
-/// bubble design system, used for the score line and the card frame baked
-/// into the exported result photo.
-private enum Brand {
-  static let skyBlue = NSColor(
-    calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
-    blue: CGFloat(0xFA) / 255, alpha: 1)
-  static let lavender = NSColor(
-    calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
-    blue: CGFloat(0xFA) / 255, alpha: 1)
+/// Layout for the "Cool" PhotoFrameCool asset (Assets.xcassets/PhotoFrameCool):
+/// a fixed 1200x1200 square with a rounded photo window cut into it, plus a
+/// caption baked into the artwork itself. See
+/// iOS_macOS_app_frames/README.txt for the source spec (window at x140,y140,
+/// 920x790, corner radius 24, given in top-left-origin image coordinates).
+private enum FrameLayout {
+  static let canvasSize = CGSize(width: 1200, height: 1200)
+  static let cornerRadius: CGFloat = 24
+
+  /// The photo window, converted from the asset's top-left-origin spec into
+  /// CGContext's bottom-up coordinate space: y = canvasHeight - top - height.
+  static let windowRect = CGRect(x: 140, y: 270, width: 920, height: 790)
 }
 
 enum ResultPhotoComposer {
@@ -23,16 +25,13 @@ enum ResultPhotoComposer {
   ) -> NSImage? {
     guard canvasSize.width > 1, canvasSize.height > 1 else { return nil }
 
-    let width = 1_280
-    let aspectRatio = canvasSize.width / canvasSize.height
-    let height = max(720, Int((CGFloat(width) / aspectRatio).rounded()))
-    let outputSize = CGSize(width: width, height: height)
+    let outputSize = FrameLayout.canvasSize
 
     guard
       let context = CGContext(
         data: nil,
-        width: width,
-        height: height,
+        width: Int(outputSize.width),
+        height: Int(outputSize.height),
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpaceCreateDeviceRGB(),
@@ -42,97 +41,51 @@ enum ResultPhotoComposer {
       return nil
     }
 
-    // The same rounded rect the SwiftUI preview clips to (see ContentView's
-    // `RoundedRectangle(cornerRadius: 18)` on the photo), so the saved PNG
-    // matches what the player already saw instead of showing hard corners.
-    let margin: CGFloat = 12
-    let cornerRadius = outputSize.width * 0.035
-    let cardRect = CGRect(origin: .zero, size: outputSize).insetBy(dx: margin, dy: margin)
-    let cardPath = CGPath(
-      roundedRect: cardRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-
-    drawCardGlow(path: cardPath, context: context)
+    let windowPath = CGPath(
+      roundedRect: FrameLayout.windowRect,
+      cornerWidth: FrameLayout.cornerRadius,
+      cornerHeight: FrameLayout.cornerRadius,
+      transform: nil
+    )
 
     context.saveGState()
-    context.addPath(cardPath)
+    context.addPath(windowPath)
     context.clip()
 
     drawMirroredAspectFill(
       cameraImage,
-      in: CGRect(origin: .zero, size: outputSize),
+      in: FrameLayout.windowRect,
       context: context
     )
 
     context.setFillColor(NSColor.black.withAlphaComponent(0.16).cgColor)
-    context.fill(CGRect(origin: .zero, size: outputSize))
+    context.fill(FrameLayout.windowRect)
 
     if let overlayImage {
-      context.draw(overlayImage, in: CGRect(origin: .zero, size: outputSize))
+      context.draw(overlayImage, in: FrameLayout.windowRect)
     }
 
-    drawFooter(
-      score: score,
-      bestCombo: bestCombo,
-      size: outputSize,
-      context: context
-    )
+    drawScoreBadge(score: score, bestCombo: bestCombo, window: FrameLayout.windowRect, context: context)
 
     context.restoreGState()
 
-    drawCardFrame(path: cardPath, size: outputSize, context: context)
+    // The frame's bubbles, the caption baked into the artwork, and the
+    // border are all one piece of pre-rendered art with a transparent
+    // cutout matching `windowRect` above, drawn on top so it always sits
+    // above the photo regardless of what the player pointed the camera at.
+    if let frameCGImage {
+      context.draw(frameCGImage, in: CGRect(origin: .zero, size: outputSize))
+    }
 
     guard let result = context.makeImage() else { return nil }
     return NSImage(cgImage: result, size: outputSize)
   }
 
-  /// A soft sky blue → lavender halo behind the rounded card, matching the
-  /// glow drawn behind bubbles in GameScene. Drawn before the clip so it
-  /// spills outside the card edge instead of being cut off, and the opaque
-  /// fill it needs to cast a shadow is fully hidden once the clipped photo
-  /// content is drawn on top.
-  private static func drawCardGlow(path: CGPath, context: CGContext) {
-    context.saveGState()
-    context.setShadow(
-      offset: .zero,
-      blur: 22,
-      color: Brand.lavender.withAlphaComponent(0.55).cgColor
-    )
-    context.addPath(path)
-    context.setFillColor(NSColor.black.cgColor)
-    context.fillPath()
-    context.restoreGState()
-  }
-
-  /// A sky blue → lavender gradient rim around the rounded card, standing in
-  /// for a flat stroke so the one photo AirPop and AirPuff produce together
-  /// carries both apps' colors.
-  private static func drawCardFrame(path: CGPath, size: CGSize, context: CGContext) {
-    let borderWidth = max(3, size.width * 0.004)
-    let strokedPath = path.copy(
-      strokingWithWidth: borderWidth,
-      lineCap: .round,
-      lineJoin: .round,
-      miterLimit: 1
-    )
-
-    context.saveGState()
-    context.addPath(strokedPath)
-    context.clip()
-
-    if let gradient = CGGradient(
-      colorsSpace: CGColorSpaceCreateDeviceRGB(),
-      colors: [Brand.skyBlue.cgColor, Brand.lavender.cgColor] as CFArray,
-      locations: [0, 1]
-    ) {
-      context.drawLinearGradient(
-        gradient,
-        start: CGPoint(x: 0, y: size.height),
-        end: CGPoint(x: size.width, y: 0),
-        options: []
-      )
-    }
-    context.restoreGState()
-  }
+  private static let frameCGImage: CGImage? = {
+    guard let image = NSImage(named: "PhotoFrameCool") else { return nil }
+    var rect = CGRect(origin: .zero, size: image.size)
+    return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+  }()
 
   private static func drawMirroredAspectFill(
     _ image: CGImage,
@@ -156,6 +109,7 @@ enum ResultPhotoComposer {
     )
 
     context.saveGState()
+    context.translateBy(x: bounds.origin.x, y: bounds.origin.y)
     context.translateBy(x: bounds.width, y: 0)
     context.scaleBy(x: -1, y: 1)
     context.interpolationQuality = .high
@@ -163,65 +117,55 @@ enum ResultPhotoComposer {
     context.restoreGState()
   }
 
-  private static func drawFooter(
+  /// A small frosted pill in the photo window's top-left corner, since the
+  /// frame's own caption area (baked into the artwork, below the window)
+  /// has no room left for the live score/combo.
+  private static func drawScoreBadge(
     score: Int,
     bestCombo: Int,
-    size: CGSize,
+    window: CGRect,
     context: CGContext
   ) {
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    if let gradient = CGGradient(
-      colorsSpace: colorSpace,
-      colors: [
-        NSColor.clear.cgColor,
-        NSColor.black.withAlphaComponent(0.82).cgColor,
-      ] as CFArray,
-      locations: [0, 1]
-    ) {
-      context.drawLinearGradient(
-        gradient,
-        start: CGPoint(x: 0, y: size.height * 0.42),
-        end: CGPoint(x: 0, y: 0),
-        options: []
-      )
-    }
-
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
 
     let shadow = NSShadow()
-    shadow.shadowColor = NSColor.black.withAlphaComponent(0.7)
-    shadow.shadowBlurRadius = 8
-    shadow.shadowOffset = CGSize(width: 0, height: -2)
+    shadow.shadowColor = NSColor.black.withAlphaComponent(0.6)
+    shadow.shadowBlurRadius = 6
+    shadow.shadowOffset = CGSize(width: 0, height: -1)
 
-    let margin = size.width * 0.045
-    let title = NSAttributedString(
-      string: "AIR POP",
+    let text = NSAttributedString(
+      string: "SCORE \(score)   BEST COMBO \(bestCombo)",
       attributes: [
-        .font: NSFont.systemFont(ofSize: size.height * 0.060, weight: .black),
+        .font: NSFont.monospacedSystemFont(ofSize: 22, weight: .bold),
         .foregroundColor: NSColor.white,
         .shadow: shadow,
       ]
     )
-    title.draw(at: CGPoint(x: margin, y: size.height * 0.055))
-
-    let result = NSAttributedString(
-      string: "SCORE  \(score)     BEST COMBO  \(bestCombo)",
-      attributes: [
-        .font: NSFont.monospacedSystemFont(
-          ofSize: size.height * 0.030,
-          weight: .bold
-        ),
-        .foregroundColor: Brand.lavender,
-        .shadow: shadow,
-      ]
+    let textSize = text.size()
+    let horizontalPadding: CGFloat = 16
+    let verticalPadding: CGFloat = 10
+    let margin: CGFloat = 20
+    let pillSize = CGSize(
+      width: textSize.width + horizontalPadding * 2,
+      height: textSize.height + verticalPadding * 2
     )
-    let resultSize = result.size()
-    result.draw(
+    let pillRect = CGRect(
+      x: window.minX + margin,
+      y: window.maxY - margin - pillSize.height,
+      width: pillSize.width,
+      height: pillSize.height
+    )
+
+    NSColor.black.withAlphaComponent(0.5).setFill()
+    NSBezierPath(roundedRect: pillRect, xRadius: pillSize.height / 2, yRadius: pillSize.height / 2)
+      .fill()
+
+    text.draw(
       at: CGPoint(
-        x: size.width - margin - resultSize.width,
-        y: size.height * 0.065
+        x: pillRect.minX + horizontalPadding,
+        y: pillRect.minY + verticalPadding
       )
     )
 
