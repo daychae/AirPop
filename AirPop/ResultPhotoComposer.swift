@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CoreImage
 
 /// Layout for the "Cool" three-layer frame
 /// (PhotoFrameCoolBase/PhotoFrameCoolTop in Assets.xcassets): a fixed
@@ -19,6 +20,12 @@ private enum FrameLayout {
   /// The photo window, converted from the asset's top-left-origin spec into
   /// CGContext's bottom-up coordinate space: y = canvasHeight - top - height.
   static let windowRect = CGRect(x: 140, y: 270, width: 920, height: 790)
+
+  /// How far the photo's edge fades out, in points. A hard geometric clip
+  /// on the rounded rect reads as a harsh, slightly jagged border where the
+  /// sharp photo meets the frame art's own soft window edge; feathering it
+  /// by a few points blends the two instead.
+  static let windowEdgeFeather: CGFloat = 4
 }
 
 /// Position/type spec for the caption, measured directly off the baked
@@ -27,29 +34,26 @@ private enum FrameLayout {
 /// `FrameLayout.windowRect` is) plus the date/divider spec from
 /// iOS_macOS_app_frames_updated/README.txt.
 private enum CaptionLayout {
-  /// Pretendard if it's installed, else Inter, else SF Pro (the system
-  /// default) -- checked at runtime rather than assumed, since neither
-  /// Pretendard nor Inter is bundled into this project; on a machine
-  /// without them this just quietly falls back.
-  static func preferredFont(weight: FontWeight, size: CGFloat) -> NSFont {
-    let candidates: [String]
-    switch weight {
-    case .bold: candidates = ["Pretendard-Bold", "Inter-Bold", "Inter_18pt-Bold"]
-    case .regular: candidates = ["Pretendard-Regular", "Inter-Regular", "Inter_18pt-Regular"]
-    }
-    for name in candidates {
-      if let font = NSFont(name: name, size: size) { return font }
-    }
-    let systemWeight: NSFont.Weight = weight == .bold ? .bold : .regular
-    return NSFont.systemFont(ofSize: size, weight: systemWeight)
+  /// SF Pro's Expanded width variant, for both the title and the
+  /// "by L & L"/date row, so the whole caption reads as one consistent
+  /// typeface instead of mixing a plain system weight with a substitute
+  /// monospace. `NSFontDescriptor.SymbolicTraits.expanded` is a coarse flag
+  /// that SF's variable-width axis doesn't actually respond to (it silently
+  /// fell back to a narrower, non-bold font); the numeric width trait does
+  /// -- 0.2 lands on the discrete ".SFNS-Expanded*" instance rather than
+  /// Semi- or Extra-Expanded on either side of it.
+  static func sfProExpanded(weight: NSFont.Weight, size: CGFloat) -> NSFont {
+    let base = NSFont.systemFont(ofSize: size, weight: weight)
+    let expanded = base.fontDescriptor.addingAttributes([
+      .traits: [NSFontDescriptor.TraitKey.width: 0.2]
+    ])
+    return NSFont(descriptor: expanded, size: size) ?? base
   }
-
-  enum FontWeight { case bold, regular }
 
   /// Twice the size the title was measured at in the baked art -- the logo
   /// can afford to read bigger than the source design.
   static let titleFontSize: CGFloat = 34 * 2
-  static let titleFont = preferredFont(weight: .bold, size: titleFontSize)
+  static let titleFont = sfProExpanded(weight: .bold, size: titleFontSize)
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0xA8) / 255, alpha: 1)
@@ -63,9 +67,9 @@ private enum CaptionLayout {
   /// baked art (y 1106...1131, center 1118.5, matching the README's date
   /// baseline band of y 1099...1135, center 1117). The README's date spec
   /// called for IBM Plex Mono Regular, 27px, 0.24em letter-spacing; now
-  /// using the same Pretendard/Inter/SF Pro family as the title instead.
+  /// using the same SF Pro Expanded family as the title instead.
   static let fontSize: CGFloat = 27
-  static let rowFont = preferredFont(weight: .regular, size: fontSize)
+  static let rowFont = sfProExpanded(weight: .regular, size: fontSize)
   /// The date and divider keep the spec's 0.24em; "by L & L" reads too
   /// loose at that tracking, so it's tightened.
   static let dateKerning: CGFloat = fontSize * 0.24
@@ -116,16 +120,19 @@ enum ResultPhotoComposer {
       context.draw(baseCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
-    let windowPath = CGPath(
-      roundedRect: FrameLayout.windowRect,
-      cornerWidth: FrameLayout.cornerRadius,
-      cornerHeight: FrameLayout.cornerRadius,
-      transform: nil
-    )
-
     context.saveGState()
-    context.addPath(windowPath)
-    context.clip()
+    if let mask = featheredWindowMask(canvasSize: outputSize) {
+      context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
+    } else {
+      let windowPath = CGPath(
+        roundedRect: FrameLayout.windowRect,
+        cornerWidth: FrameLayout.cornerRadius,
+        cornerHeight: FrameLayout.cornerRadius,
+        transform: nil
+      )
+      context.addPath(windowPath)
+      context.clip()
+    }
 
     drawMirroredAspectFill(
       cameraImage,
@@ -162,6 +169,50 @@ enum ResultPhotoComposer {
 
   private static let baseCGImage: CGImage? = loadNamedImage("PhotoFrameCoolBase")
   private static let topCGImage: CGImage? = loadNamedImage("PhotoFrameCoolTop")
+  private static let ciContext = CIContext(options: nil)
+
+  /// A soft-edged grayscale mask the size of the whole canvas: white (fully
+  /// visible) over the rounded photo window, black everywhere else, then
+  /// blurred by `FrameLayout.windowEdgeFeather` so the boundary fades over
+  /// a few points instead of cutting a hard geometric edge. Used with
+  /// `CGContext.clip(to:mask:)` so the photo, game overlay, and dim tint
+  /// all fade out together at the window's edge.
+  private static func featheredWindowMask(canvasSize: CGSize) -> CGImage? {
+    guard
+      let maskContext = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGImageAlphaInfo.none.rawValue
+      )
+    else { return nil }
+    maskContext.setFillColor(gray: 0, alpha: 1)
+    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
+    maskContext.setFillColor(gray: 1, alpha: 1)
+    maskContext.addPath(
+      CGPath(
+        roundedRect: FrameLayout.windowRect,
+        cornerWidth: FrameLayout.cornerRadius,
+        cornerHeight: FrameLayout.cornerRadius,
+        transform: nil
+      )
+    )
+    maskContext.fillPath()
+    guard let rawMask = maskContext.makeImage() else { return nil }
+
+    let ciMask = CIImage(cgImage: rawMask)
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
+    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(FrameLayout.windowEdgeFeather, forKey: kCIInputRadiusKey)
+    guard
+      let output = blur.outputImage?.cropped(to: ciMask.extent),
+      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
+    else { return rawMask }
+    return blurredMask
+  }
 
   private static func loadNamedImage(_ name: String) -> CGImage? {
     guard let image = NSImage(named: name) else { return nil }
