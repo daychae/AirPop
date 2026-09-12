@@ -2,12 +2,12 @@
   "images": [
     {
       "idiom": "universal",
-      "filename": "PhotoFrameCool.png",
+      "filename": "PhotoFrameCoolBase.png",
       "scale": "1x"
     },
     {
       "idiom": "universal",
-      "filename": "PhotoFrameCool@2x.png",
+      "filename": "PhotoFrameCoolBase@2x.png",
       "scale": "2x"
     }
   ],

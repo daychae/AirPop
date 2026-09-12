@@ -1,12 +1,17 @@
 import AppKit
 import CoreGraphics
-import CoreImage
 
-/// Layout for the "Cool" PhotoFrameCool asset (Assets.xcassets/PhotoFrameCool):
-/// a fixed 1200x1200 square with a rounded photo window cut into it, plus a
-/// caption baked into the artwork itself. See
-/// iOS_macOS_app_frames/README.txt for the source spec (window at x140,y140,
-/// 920x790, corner radius 24, given in top-left-origin image coordinates).
+/// Layout for the "Cool" three-layer frame
+/// (PhotoFrameCoolBase/PhotoFrameCoolTop in Assets.xcassets): a fixed
+/// 1200x1200 square. Base carries the background art with an empty (opaque)
+/// photo window; top carries bubbles that spill onto the photo's edges,
+/// with a transparent center covering roughly the window area only -- NOT
+/// the caption footprint below it. Base still has "AirPop & AirPuff / by L
+/// & L" baked in too, but top's opaque background fully covers that
+/// footprint, so the whole caption (title, "by L & L", and the live date)
+/// is drawn fresh on top of everything instead. See
+/// iOS_macOS_app_frames_updated/README.txt for the source spec, given in
+/// top-left-origin image coordinates.
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
   static let cornerRadius: CGFloat = 24
@@ -16,29 +21,41 @@ private enum FrameLayout {
   static let windowRect = CGRect(x: 140, y: 270, width: 920, height: 790)
 }
 
-/// The frame art's caption ("AirPop & AirPuff / by Lauren & Luke |
-/// 2026.09.12") is baked into its pixels with a fixed name and date, so it
-/// can't be edited in place. Rather than covering that footprint with a
-/// flat plate (which reads as an obvious box sitting on top of the art),
-/// this blurs just that region of the frame's OWN background (never the
-/// photo -- the footprint sits below the photo window, so the two never
-/// overlap) so the old text dissolves into a soft, on-brand blur with no
-/// hard edge, the same way a soft-focus vignette would, and draws a live
-/// caption with the real capture date directly on top of it.
+/// Position/type spec for the caption, measured directly off the baked
+/// title/"by L & L" text in PhotoFrameCoolBase.png (top-left origin, then
+/// converted to bottom-up CG coordinates the same way
+/// `FrameLayout.windowRect` is) plus the date/divider spec from
+/// iOS_macOS_app_frames_updated/README.txt.
 private enum CaptionLayout {
-  /// Footprint measured directly off the baked title/subtitle text (top-left
-  /// origin), converted to bottom-up CG coordinates the same way
-  /// `FrameLayout.windowRect` is, with margin for the blur to fall off into.
-  static let softenRect = CGRect(x: 220, y: 45, width: 760, height: 165)
-  static let backgroundBlurRadius: CGFloat = 30
-  static let maskBlurRadius: CGFloat = 26
-  /// Sampled from the baked title/subtitle strokes in PhotoFrameCool.png.
+  static let titleFont = NSFont.systemFont(ofSize: 34, weight: .bold)
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0xA8) / 255, alpha: 1)
-  static let subtitleColor = NSColor(
+  /// Center of the "AirPop & AirPuff" title, at x600,y1039 (top-left
+  /// origin) -- the midpoint of its measured bounding box.
+  static let titleCenter = CGPoint(x: 600, y: canvasHeight - 1039)
+
+  /// "by L & L", the date, and the divider between them all share one
+  /// row/style: IBM Plex Mono Regular, 27px, 0.24em letter-spacing (per the
+  /// README's date spec), sitting on the same baseline band as "by L & L"
+  /// in the baked art (y 1106...1131, center 1118.5, matching the README's
+  /// date baseline band of y 1099...1135, center 1117).
+  static let fontSize: CGFloat = 27
+  static let kerning: CGFloat = fontSize * 0.24
+  static let rowColor = NSColor(
     calibratedRed: CGFloat(0x3F) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0x86) / 255, alpha: 1)
+  static let rowCenterY = canvasHeight - 1117
+  /// Center of the date text specifically, at x713 (top-left origin) in
+  /// the README's spec.
+  static let dateCenterX: CGFloat = 713
+  static let dividerSize = CGSize(width: 2, height: 26)
+  static let dividerGap: CGFloat = 22
+  static let dividerColor = NSColor(
+    calibratedRed: CGFloat(0x8A) / 255, green: CGFloat(0x93) / 255,
+    blue: CGFloat(0xC8) / 255, alpha: 1)
+
+  private static let canvasHeight: CGFloat = FrameLayout.canvasSize.height
 }
 
 enum ResultPhotoComposer {
@@ -65,6 +82,10 @@ enum ResultPhotoComposer {
       )
     else {
       return nil
+    }
+
+    if let baseCGImage {
+      context.draw(baseCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
     let windowPath = CGPath(
@@ -99,74 +120,25 @@ enum ResultPhotoComposer {
 
     context.restoreGState()
 
-    // The frame's bubbles, the caption baked into the artwork, and the
-    // border are all one piece of pre-rendered art with a transparent
-    // cutout matching `windowRect` above, drawn on top so it always sits
-    // above the photo regardless of what the player pointed the camera at.
-    if let frameCGImage {
-      context.draw(frameCGImage, in: CGRect(origin: .zero, size: outputSize))
+    // Bubbles that spill onto the photo's edges, with a transparent center,
+    // drawn after the photo so they sit on top of it near the border.
+    if let topCGImage {
+      context.draw(topCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
-    softenCaptionFootprint(context: context, canvasSize: outputSize)
     drawCaption(context: context)
 
     guard let result = context.makeImage() else { return nil }
     return NSImage(cgImage: result, size: outputSize)
   }
 
-  private static let frameCGImage: CGImage? = {
-    guard let image = NSImage(named: "PhotoFrameCool") else { return nil }
+  private static let baseCGImage: CGImage? = loadNamedImage("PhotoFrameCoolBase")
+  private static let topCGImage: CGImage? = loadNamedImage("PhotoFrameCoolTop")
+
+  private static func loadNamedImage(_ name: String) -> CGImage? {
+    guard let image = NSImage(named: name) else { return nil }
     var rect = CGRect(origin: .zero, size: image.size)
     return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
-  }()
-
-  private static let ciContext = CIContext(options: nil)
-
-  /// A blurred copy of just the frame ART (never the photo, which the frame
-  /// art is later drawn over) so the old caption dissolves into an
-  /// unreadable, on-brand blur. Computed once and cached: it's the same
-  /// every time regardless of what photo is being composed.
-  private static let blurredFrameCGImage: CGImage? = {
-    guard let frameCGImage, let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
-    let ciImage = CIImage(cgImage: frameCGImage)
-    blur.setValue(ciImage.clampedToExtent(), forKey: kCIInputImageKey)
-    blur.setValue(CaptionLayout.backgroundBlurRadius, forKey: kCIInputRadiusKey)
-    guard let output = blur.outputImage?.cropped(to: ciImage.extent) else { return nil }
-    return ciContext.createCGImage(output, from: ciImage.extent)
-  }()
-
-  /// A soft-edged grayscale mask the size of the whole canvas: white (fully
-  /// visible) over `CaptionLayout.softenRect`, black everywhere else, then
-  /// blurred so the boundary fades rather than cutting a hard rectangle.
-  /// Used with `CGContext.clip(to:mask:)` to blend the blurred frame art
-  /// back in only over the caption footprint.
-  private static func featheredCaptionMask(canvasSize: CGSize) -> CGImage? {
-    guard
-      let maskContext = CGContext(
-        data: nil,
-        width: Int(canvasSize.width),
-        height: Int(canvasSize.height),
-        bitsPerComponent: 8,
-        bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceGray(),
-        bitmapInfo: CGImageAlphaInfo.none.rawValue
-      )
-    else { return nil }
-    maskContext.setFillColor(gray: 0, alpha: 1)
-    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
-    maskContext.setFillColor(gray: 1, alpha: 1)
-    maskContext.fill(CaptionLayout.softenRect)
-    guard let rawMask = maskContext.makeImage() else { return nil }
-
-    let ciMask = CIImage(cgImage: rawMask)
-    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
-    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
-    blur.setValue(CaptionLayout.maskBlurRadius, forKey: kCIInputRadiusKey)
-    guard
-      let output = blur.outputImage?.cropped(to: ciMask.extent),
-      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
-    else { return rawMask }
-    return blurredMask
   }
 
   private static let captionDateFormatter: DateFormatter = {
@@ -175,65 +147,77 @@ enum ResultPhotoComposer {
     return formatter
   }()
 
-  /// Blends the blurred frame art back in over just the caption footprint,
-  /// through a feathered mask, so the old baked-in text dissolves without a
-  /// visible seam or box.
-  private static func softenCaptionFootprint(context: CGContext, canvasSize: CGSize) {
-    guard
-      let blurredFrameCGImage,
-      let mask = featheredCaptionMask(canvasSize: canvasSize)
-    else { return }
-    context.saveGState()
-    context.clip(to: CGRect(origin: .zero, size: canvasSize), mask: mask)
-    context.draw(blurredFrameCGImage, in: CGRect(origin: .zero, size: canvasSize))
-    context.restoreGState()
-  }
-
-  /// Draws a live caption -- the real capture date, computed when the photo
-  /// is taken -- directly over the softened footprint. No plate/box: the
-  /// blur in `softenCaptionFootprint` already makes the text legible against
-  /// the frame's own background.
+  /// Draws the whole caption -- title, "by L & L", the divider, and the
+  /// live capture date -- fresh on top of everything else. PhotoFrameCoolTop
+  /// covers all of this footprint in the baked art (its transparent center
+  /// only reaches the photo window, not the caption below it), so none of
+  /// it would otherwise be visible.
   private static func drawCaption(context: CGContext) {
-    let region = CaptionLayout.softenRect
-
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
 
-    let shadow = NSShadow()
-    shadow.shadowColor = NSColor.white.withAlphaComponent(0.7)
-    shadow.shadowBlurRadius = 4
-    shadow.shadowOffset = .zero
-
     let title = NSAttributedString(
       string: "AirPop & AirPuff",
       attributes: [
-        .font: NSFont.systemFont(ofSize: 34, weight: .bold),
+        .font: CaptionLayout.titleFont,
         .foregroundColor: CaptionLayout.titleColor,
-        .shadow: shadow,
       ]
     )
-    let subtitle = NSAttributedString(
-      string: "by L & L | \(captionDateFormatter.string(from: Date()))",
-      attributes: [
-        .font: NSFont.monospacedSystemFont(ofSize: 17, weight: .medium),
-        .foregroundColor: CaptionLayout.subtitleColor,
-        .kern: 0.8,
-        .shadow: shadow,
-      ]
-    )
-
     let titleSize = title.size()
-    let subtitleSize = subtitle.size()
-    let gap: CGFloat = 10
-    let blockHeight = titleSize.height + gap + subtitleSize.height
-    let subtitleBottomY = region.midY - blockHeight / 2
-    let titleBottomY = subtitleBottomY + subtitleSize.height + gap
+    title.draw(
+      at: CGPoint(
+        x: CaptionLayout.titleCenter.x - titleSize.width / 2,
+        y: CaptionLayout.titleCenter.y - titleSize.height / 2
+      )
+    )
 
-    title.draw(at: CGPoint(x: region.midX - titleSize.width / 2, y: titleBottomY))
-    subtitle.draw(at: CGPoint(x: region.midX - subtitleSize.width / 2, y: subtitleBottomY))
+    let rowFont = NSFont.monospacedSystemFont(ofSize: CaptionLayout.fontSize, weight: .regular)
+    let byLine = NSAttributedString(
+      string: "by L & L",
+      attributes: [
+        .font: rowFont,
+        .foregroundColor: CaptionLayout.rowColor,
+        .kern: CaptionLayout.kerning,
+      ]
+    )
+    let dateText = NSAttributedString(
+      string: captionDateFormatter.string(from: Date()),
+      attributes: [
+        // The spec calls for IBM Plex Mono Regular; substituting the system
+        // monospaced font until that font file is bundled into the project.
+        .font: rowFont,
+        .foregroundColor: CaptionLayout.rowColor,
+        .kern: CaptionLayout.kerning,
+      ]
+    )
+
+    let dateSize = dateText.size()
+    let dateOrigin = CGPoint(
+      x: CaptionLayout.dateCenterX - dateSize.width / 2,
+      y: CaptionLayout.rowCenterY - dateSize.height / 2
+    )
+    dateText.draw(at: dateOrigin)
+
+    let dividerRect = CGRect(
+      x: dateOrigin.x - CaptionLayout.dividerGap - CaptionLayout.dividerSize.width,
+      y: CaptionLayout.rowCenterY - CaptionLayout.dividerSize.height / 2,
+      width: CaptionLayout.dividerSize.width,
+      height: CaptionLayout.dividerSize.height
+    )
+
+    let byLineSize = byLine.size()
+    byLine.draw(
+      at: CGPoint(
+        x: dividerRect.minX - CaptionLayout.dividerGap - byLineSize.width,
+        y: CaptionLayout.rowCenterY - byLineSize.height / 2
+      )
+    )
 
     NSGraphicsContext.restoreGraphicsState()
+
+    context.setFillColor(CaptionLayout.dividerColor.cgColor)
+    context.fill(dividerRect)
   }
 
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
