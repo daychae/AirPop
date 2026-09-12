@@ -95,15 +95,17 @@ Vision extracts hand landmarks on the Mac. Four normalized features are passed
 to the bundled `PinchGestureClassifier.mlmodel`, which classifies each tracked
 hand as `open`, `pinch`, or `background`.
 
-The model is generated, not learned from recorded hands: `Tools` synthesizes a
-labelled feature distribution and fits a random forest to it. That makes the
-training script the only place the model's behavior can actually be changed,
-since the `.mlmodel` itself is a binary.
+The model is generated, not learned from recorded hands:
+`Tools/PinchClassifierTools` synthesizes a labelled feature distribution and
+fits a random forest to it. That makes the training tool the only place the
+model's behavior can actually be changed, since the `.mlmodel` itself is a
+binary.
 
 ```bash
-swift Tools/TrainPinchGestureClassifier.swift AirPop/PinchGestureClassifier.mlmodel
-xcrun coremlc compile AirPop/PinchGestureClassifier.mlmodel /tmp/airpop
-swift Tools/ValidatePinchGestureClassifier.swift /tmp/airpop/PinchGestureClassifier.mlmodelc
+cd Tools/PinchClassifierTools
+swift run TrainPinchGestureClassifier ../../AirPop/PinchGestureClassifier.mlmodel
+xcrun coremlc compile ../../AirPop/PinchGestureClassifier.mlmodel /tmp/airpop
+swift run ValidatePinchGestureClassifier /tmp/airpop/PinchGestureClassifier.mlmodelc
 ```
 
 Every distance is measured in units of image height. Vision normalizes each

@@ -20,7 +20,7 @@ bubbles so the full round can be tested.
 - Exact preview-layer coordinate conversion for crop and mirroring
 - 30-second rounds with countdown, score, combo, misses, bombs, and high score
 - Automatic pause when every hand has been missing for 1.5 seconds
-- Procedural SpriteKit vector bubbles and pop/bomb effects
+- Procedural frosted-glass pastel SpriteKit bubbles and pop/bomb effects
 - End-of-round camera and SpriteKit composite photo with explicit PNG saving
 - AirPuff iPhone companion with live dBFS blow detection and calibration
 - Bonjour discovery on a fixed port, with manual host entry as a fallback
