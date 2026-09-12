@@ -66,14 +66,16 @@ private enum CaptionLayout {
   /// Twice the size the title was measured at in the baked art -- the logo
   /// can afford to read bigger than the source design.
   static let titleFontSize: CGFloat = 34 * 2
-  static let titleFont = sfProExpanded(weight: .bold, size: titleFontSize)
+  /// Semibold, not Bold -- Bold read too heavy at this size.
+  static let titleFont = sfProExpanded(weight: .semibold, size: titleFontSize)
   /// Sampled from the baked title text in PhotoFrameCoolBase.png.
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0xA8) / 255, alpha: 1)
-  /// Center of the "AirPop & AirPuff" title, at x600,y1039 (top-left
-  /// origin) -- the midpoint of its measured bounding box in the baked art,
-  /// kept as the center even though the title itself is now drawn larger.
+  /// Center of the title, at x600,y1039 (top-left origin) -- the midpoint
+  /// of "AirPop & AirPuff"'s measured bounding box in the baked art, kept
+  /// as the center even though the title itself now reads just "AirPop"
+  /// and is drawn larger.
   static let titleCenter = CGPoint(x: 600, y: canvasHeight - 1039)
 
   /// "by L & L", the date, and the divider between them all share one
@@ -301,7 +303,7 @@ enum ResultPhotoComposer {
     NSGraphicsContext.current = graphicsContext
 
     let title = NSAttributedString(
-      string: "AirPop & AirPuff",
+      string: "AirPop",
       attributes: [
         .font: CaptionLayout.titleFont,
         .foregroundColor: CaptionLayout.titleColor,

@@ -126,7 +126,7 @@ struct BlowMeterView: View {
         .foregroundStyle(.secondary)
 
       Text("Take a breath.")
-        .font(.system(size: 30, weight: .semibold, design: .rounded))
+        .font(.system(size: 30, weight: .semibold, design: .default))
 
       Text("Blow gently toward your iPhone.")
         .font(.subheadline)
@@ -172,7 +172,7 @@ struct BlowMeterView: View {
   private var roleCard: some View {
     HStack(spacing: 14) {
       Text("A")
-        .font(.system(size: 30, weight: .black, design: .rounded))
+        .font(.system(size: 30, weight: .black, design: .default))
         .foregroundStyle(BubbleColor.skyBlue)
         .frame(width: 54, height: 54)
         .background(BubbleColor.skyBlue.opacity(0.15), in: Circle())
