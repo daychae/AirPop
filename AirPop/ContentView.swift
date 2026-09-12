@@ -92,7 +92,7 @@ struct ContentView: View {
       game.setModelReady(tracker.isMLReady)
       AudioManager.shared.preload()
       let scene = game.scene
-      game.resultPhotoProvider = { [weak tracker, weak scene] score, bestCombo in
+      game.resultPhotoProvider = { [weak tracker, weak scene] _, _ in
         guard
           let cameraImage = tracker?.latestCameraImage(),
           let scene
@@ -102,9 +102,7 @@ struct ContentView: View {
         return ResultPhotoComposer.make(
           cameraImage: cameraImage,
           overlayImage: scene.snapshotImage(),
-          canvasSize: scene.size,
-          score: score,
-          bestCombo: bestCombo
+          canvasSize: scene.size
         )
       }
       blowServer.start(

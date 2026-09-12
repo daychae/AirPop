@@ -110,9 +110,7 @@ enum ResultPhotoComposer {
   static func make(
     cameraImage: CGImage,
     overlayImage: CGImage?,
-    canvasSize: CGSize,
-    score: Int,
-    bestCombo: Int
+    canvasSize: CGSize
   ) -> NSImage? {
     guard canvasSize.width > 1, canvasSize.height > 1 else { return nil }
 
@@ -164,10 +162,10 @@ enum ResultPhotoComposer {
       // the SpriteKit scene's aspect ratio (scene.size, i.e. `canvasSize`)
       // matches the on-screen game window, not the frame's 920x790 window,
       // so drawing it straight into `windowRect` squashed it vertically.
+      // The bubbles it draws are the only game content that belongs in the
+      // photo -- no score/combo text.
       drawAspectFill(overlayImage, in: FrameLayout.windowRect, context: context)
     }
-
-    drawScoreBadge(score: score, bestCombo: bestCombo, window: FrameLayout.windowRect, context: context)
 
     context.restoreGState()
 
@@ -362,6 +360,15 @@ enum ResultPhotoComposer {
     context.fill(dividerRect)
   }
 
+  /// Aspect-fill crops symmetrically by default, but the window (920x790,
+  /// close to square) is much shorter than the game window it's capturing
+  /// from, so a centered crop was cutting off both the top of the player's
+  /// head and their chest/shoulders. Weighting the vertical crop toward the
+  /// top keeps the head in frame and lets the extra cropping fall on the
+  /// body below instead, which the eased top-layer veil (see
+  /// `FrameLayout.topLayerInset`) already softens rather than cutting hard.
+  private static let verticalCropBias: CGFloat = 0.85
+
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
     let scale = max(
       bounds.width / source.width,
@@ -370,7 +377,7 @@ enum ResultPhotoComposer {
     let drawSize = CGSize(width: source.width * scale, height: source.height * scale)
     return CGRect(
       x: (bounds.width - drawSize.width) * 0.5,
-      y: (bounds.height - drawSize.height) * 0.5,
+      y: (bounds.height - drawSize.height) * verticalCropBias,
       width: drawSize.width,
       height: drawSize.height
     )
@@ -412,58 +419,4 @@ enum ResultPhotoComposer {
     context.restoreGState()
   }
 
-  /// A small frosted pill in the photo window's top-left corner, since the
-  /// frame's own caption area (baked into the artwork, below the window)
-  /// has no room left for the live score/combo.
-  private static func drawScoreBadge(
-    score: Int,
-    bestCombo: Int,
-    window: CGRect,
-    context: CGContext
-  ) {
-    let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = graphicsContext
-
-    let shadow = NSShadow()
-    shadow.shadowColor = NSColor.black.withAlphaComponent(0.6)
-    shadow.shadowBlurRadius = 6
-    shadow.shadowOffset = CGSize(width: 0, height: -1)
-
-    let text = NSAttributedString(
-      string: "SCORE \(score)   BEST COMBO \(bestCombo)",
-      attributes: [
-        .font: NSFont.monospacedSystemFont(ofSize: 22, weight: .bold),
-        .foregroundColor: NSColor.white,
-        .shadow: shadow,
-      ]
-    )
-    let textSize = text.size()
-    let horizontalPadding: CGFloat = 16
-    let verticalPadding: CGFloat = 10
-    let margin: CGFloat = 20
-    let pillSize = CGSize(
-      width: textSize.width + horizontalPadding * 2,
-      height: textSize.height + verticalPadding * 2
-    )
-    let pillRect = CGRect(
-      x: window.minX + margin,
-      y: window.maxY - margin - pillSize.height,
-      width: pillSize.width,
-      height: pillSize.height
-    )
-
-    NSColor.black.withAlphaComponent(0.5).setFill()
-    NSBezierPath(roundedRect: pillRect, xRadius: pillSize.height / 2, yRadius: pillSize.height / 2)
-      .fill()
-
-    text.draw(
-      at: CGPoint(
-        x: pillRect.minX + horizontalPadding,
-        y: pillRect.minY + verticalPadding
-      )
-    )
-
-    NSGraphicsContext.restoreGraphicsState()
-  }
 }
