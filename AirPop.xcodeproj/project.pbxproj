@@ -24,6 +24,7 @@
 		A10000000000000000000022 /* AirPopLinkStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* AirPopLinkStats.swift */; };
 		A10000000000000000000023 /* HostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HostAddress.swift */; };
 		A10000000000000000000024 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* AudioManager.swift */; };
+		A10000000000000000000025 /* ResultPhotoComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* ResultPhotoComposer.swift */; };
 		A10000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */; };
 		A10000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */; };
 		A10000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */; };
@@ -60,6 +61,7 @@
 		A20000000000000000000020 /* AirPopLinkStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPopLinkStats.swift; sourceTree = "<group>"; };
 		A20000000000000000000021 /* HostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAddress.swift; sourceTree = "<group>"; };
 		A20000000000000000000022 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
+		A20000000000000000000023 /* ResultPhotoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPhotoComposer.swift; sourceTree = "<group>"; };
 		A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_01.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_02.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_03.wav; sourceTree = SOURCE_ROOT; };
@@ -67,8 +69,6 @@
 		A20000000000000000000034 /* Assets/Sounds/countdown_tick.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/countdown_tick.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000035 /* Assets/Sounds/game_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_start.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000036 /* Assets/Sounds/game_over.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_over.wav; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000040 /* TrainPinchGestureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainPinchGestureClassifier.swift; sourceTree = "<group>"; };
-		A20000000000000000000041 /* ValidatePinchGestureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatePinchGestureClassifier.swift; sourceTree = "<group>"; };
 		B20000000000000000000000 /* AirPuff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirPuff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000001 /* AirPuffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPuffApp.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* BlowMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlowMeterView.swift; sourceTree = "<group>"; };
@@ -126,6 +126,7 @@
 				A2000000000000000000000F /* AirPopBonjourServer.swift */,
 				A20000000000000000000021 /* HostAddress.swift */,
 				A20000000000000000000022 /* AudioManager.swift */,
+				A20000000000000000000023 /* ResultPhotoComposer.swift */,
 				A20000000000000000000008 /* Info.plist */,
 				A20000000000000000000009 /* AirPop.entitlements */,
 				A2000000000000000000000A /* README.md */,
@@ -159,8 +160,6 @@
 		A40000000000000000000011 /* Tools */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000040 /* TrainPinchGestureClassifier.swift */,
-				A20000000000000000000041 /* ValidatePinchGestureClassifier.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -251,6 +250,9 @@
 				Base,
 			);
 			mainGroup = A40000000000000000000001;
+			packageReferences = (
+				13D9C6B83055527900EE4014 /* XCLocalSwiftPackageReference "Tools/PinchClassifierTools" */,
+			);
 			productRefGroup = A40000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -307,6 +309,7 @@
 				A10000000000000000000022 /* AirPopLinkStats.swift in Sources */,
 				A10000000000000000000023 /* HostAddress.swift in Sources */,
 				A10000000000000000000024 /* AudioManager.swift in Sources */,
+				A10000000000000000000025 /* ResultPhotoComposer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -493,6 +496,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		13D9C6B83055527900EE4014 /* XCLocalSwiftPackageReference "Tools/PinchClassifierTools" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Tools/PinchClassifierTools;
+		};
+/* End XCLocalSwiftPackageReference section */
 	};
 	rootObject = A60000000000000000000001 /* Project object */;
 }

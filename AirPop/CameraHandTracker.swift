@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import CoreGraphics
+import CoreImage
 import Foundation
 @preconcurrency import Vision
 
@@ -54,6 +55,9 @@ final class CameraHandTracker: NSObject, ObservableObject {
   private let captureQueue = DispatchQueue(label: "bubble.camera.capture")
   private let visionQueue = DispatchQueue(label: "bubble.camera.vision")
   private let videoOutput = AVCaptureVideoDataOutput()
+  private let frameLock = NSLock()
+  private let imageContext = CIContext(options: [.cacheIntermediates: false])
+  private var latestPixelBuffer: CVPixelBuffer?
   private let gestureClassifier = HandGestureClassifier()
   private let handPoseRequest: VNDetectHumanHandPoseRequest = {
     let request = VNDetectHumanHandPoseRequest()
@@ -234,6 +238,12 @@ final class CameraHandTracker: NSObject, ObservableObject {
   }
 
   private func process(_ sampleBuffer: CMSampleBuffer) {
+    if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+      frameLock.lock()
+      latestPixelBuffer = pixelBuffer
+      frameLock.unlock()
+    }
+
     // Keep only one Vision request in flight. This prevents latency building up.
     guard !visionIsBusy else { return }
     visionIsBusy = true
@@ -285,6 +295,19 @@ final class CameraHandTracker: NSObject, ObservableObject {
         resetTracking: true
       )
     }
+  }
+
+  /// Returns the newest camera frame for the in-memory result photo. Keeping
+  /// the pixel buffer rather than encoding every frame makes the normal Vision
+  /// path pay almost no extra cost.
+  func latestCameraImage() -> CGImage? {
+    frameLock.lock()
+    let pixelBuffer = latestPixelBuffer
+    frameLock.unlock()
+
+    guard let pixelBuffer else { return nil }
+    let image = CIImage(cvPixelBuffer: pixelBuffer)
+    return imageContext.createCGImage(image, from: image.extent)
   }
 
   private func detectedHand(
