@@ -1,6 +1,14 @@
 import AppKit
 import CoreGraphics
 
+/// Lavender ("Pop Lilac"), AirPop's own color in the bubble design system,
+/// used for the score line baked into the exported result photo.
+private enum Brand {
+  static let lavender = NSColor(
+    calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
+    blue: CGFloat(0xFA) / 255, alpha: 1)
+}
+
 enum ResultPhotoComposer {
   static func make(
     cameraImage: CGImage,
@@ -106,7 +114,9 @@ enum ResultPhotoComposer {
       )
     }
 
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.28).cgColor)
+    // A soft white rim, matching the frosted-glass border used on the
+    // bubbles and on the Figma photo-card treatment.
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.82).cgColor)
     context.setLineWidth(max(2, size.width * 0.002))
     context.stroke(
       CGRect(origin: .zero, size: size).insetBy(dx: 12, dy: 12)
@@ -139,7 +149,7 @@ enum ResultPhotoComposer {
           ofSize: size.height * 0.030,
           weight: .bold
         ),
-        .foregroundColor: NSColor.cyan,
+        .foregroundColor: Brand.lavender,
         .shadow: shadow,
       ]
     )

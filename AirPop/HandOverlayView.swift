@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Matches the pink and sky blue used across the AirPuff/AirPop bubble
+/// design system, so the two tracked fingertips read as on-brand rather
+/// than arbitrary system colors.
+private enum Brand {
+  static let skyBlue = Color(red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
+  static let pink = Color(red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
+}
+
 struct HandOverlayView: View {
     let poses: [HandPose]
     let coordinateMapper: CameraCoordinateMapper
@@ -26,8 +34,8 @@ struct HandOverlayView: View {
                         style: StrokeStyle(lineWidth: 3, lineCap: .round)
                     )
 
-                    jointDot(at: thumb, color: .pink)
-                    jointDot(at: index, color: .cyan)
+                    jointDot(at: thumb, color: Brand.pink)
+                    jointDot(at: index, color: Brand.skyBlue)
 
                     // A ring, not a dot: the aim is held still while the
                     // fingers close, so it has to read as its own thing rather

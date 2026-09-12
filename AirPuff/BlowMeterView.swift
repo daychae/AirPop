@@ -173,9 +173,9 @@ struct BlowMeterView: View {
     HStack(spacing: 14) {
       Text("A")
         .font(.system(size: 30, weight: .black, design: .rounded))
-        .foregroundStyle(.orange)
+        .foregroundStyle(BubbleColor.skyBlue)
         .frame(width: 54, height: 54)
-        .background(.orange.opacity(0.15), in: Circle())
+        .background(BubbleColor.skyBlue.opacity(0.15), in: Circle())
 
       VStack(alignment: .leading, spacing: 3) {
         Text("불어서 버블 만들기")
@@ -220,9 +220,9 @@ struct BlowMeterView: View {
   private var roundStateTint: Color {
     switch connection.remotePhase {
     case .playing: return .green
-    case .countdown: return .cyan
+    case .countdown: return BubbleColor.lavender
     case .pausedHandsLost, .pausedPeerLost: return .orange
-    case .result: return .purple
+    case .result: return BubbleColor.peach
     default: return .gray
     }
   }
@@ -299,7 +299,7 @@ struct BlowMeterView: View {
           .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(connection.isStreaming ? .red : .cyan)
+        .tint(connection.isStreaming ? .red : BubbleColor.skyBlue)
         .disabled(!connection.isLinkUsable)
       }
 
@@ -410,7 +410,7 @@ struct BlowMeterView: View {
 
       if detector.isCalibrating {
         ProgressView(value: detector.calibrationProgress)
-          .tint(.cyan)
+          .tint(BubbleColor.skyBlue)
       }
 
       if detector.permissionState == .denied {
@@ -517,7 +517,7 @@ struct BlowMeterView: View {
       }
 
       Slider(value: $detector.thresholdMargin, in: 8...24, step: 1)
-        .tint(.cyan)
+        .tint(BubbleColor.skyBlue)
 
       HStack {
         Text("민감")
@@ -551,7 +551,7 @@ struct BlowMeterView: View {
         .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
-      .tint(detector.isMonitoring ? .red : .cyan)
+      .tint(detector.isMonitoring ? .red : BubbleColor.skyBlue)
 
       Button("다시 보정") {
         detector.recalibrate()
@@ -612,12 +612,12 @@ struct BlowMeterView: View {
 
   private var meterColor: Color {
     if detector.isBlowing {
-      return .cyan
+      return BubbleColor.skyBlue
     }
     if detector.currentDecibels >= detector.thresholdDecibels {
-      return .orange
+      return BubbleColor.peach
     }
-    return .blue
+    return BubbleColor.lavender
   }
 
   private var meterStateText: String {

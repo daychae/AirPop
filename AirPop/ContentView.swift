@@ -3,6 +3,19 @@ import SpriteKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The five pastel colors used across the AirPuff/AirPop bubble design
+/// system (see the Figma "Bubble System — Components" section), scoped here
+/// to the HUD/panel chrome rather than the gameplay bubbles themselves.
+/// AirPop's own signature is lavender ("Pop Lilac"); sky blue stands in for
+/// the AirPuff side of the pairing wherever this screen references it.
+private enum Brand {
+  static let skyBlue = Color(red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
+  static let lavender = Color(red: Double(0xBF) / 255, green: Double(0xA6) / 255, blue: Double(0xFA) / 255)
+  static let mint = Color(red: Double(0x99) / 255, green: Double(0xEA) / 255, blue: Double(0xC7) / 255)
+  static let pink = Color(red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
+  static let peach = Color(red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
+}
+
 struct ContentView: View {
   @StateObject private var tracker = CameraHandTracker()
   @StateObject private var cameraCoordinates = CameraCoordinateMapper()
@@ -148,7 +161,7 @@ struct ContentView: View {
   private var hud: some View {
     VStack {
       HStack(spacing: 14) {
-        hudCard(title: "SCORE", value: "\(game.score)", tint: .cyan)
+        hudCard(title: "SCORE", value: "\(game.score)", tint: Brand.lavender)
 
         Spacer()
 
@@ -167,7 +180,7 @@ struct ContentView: View {
 
         Spacer()
 
-        hudCard(title: "BEST", value: "\(game.highScore)", tint: .purple)
+        hudCard(title: "BEST", value: "\(game.highScore)", tint: Brand.skyBlue)
       }
       .padding(.horizontal, 24)
       .padding(.top, 18)
@@ -181,7 +194,7 @@ struct ContentView: View {
         if game.combo >= 2 {
           Text("\(game.combo) COMBO")
             .font(.headline.bold())
-            .foregroundStyle(.yellow)
+            .foregroundStyle(Brand.pink)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
             .background(.black.opacity(0.52), in: Capsule())
@@ -203,7 +216,7 @@ struct ContentView: View {
         Text("\(value)")
           .font(.system(size: 150, weight: .black, design: .rounded))
           .foregroundStyle(.white)
-          .shadow(color: .cyan, radius: 22)
+          .shadow(color: Brand.lavender, radius: 22)
       case .playing:
         EmptyView()
       case .pausedHandLost:
@@ -246,7 +259,7 @@ struct ContentView: View {
           .font(.system(size: 54, weight: .black, design: .rounded))
           .foregroundStyle(
             LinearGradient(
-              colors: [.white, .cyan],
+              colors: [.white, Brand.lavender],
               startPoint: .top,
               endPoint: .bottom
             )
@@ -260,13 +273,13 @@ struct ContentView: View {
             "A",
             title: "아이폰으로 만들기",
             detail: "마이크에 후 불기",
-            tint: .orange
+            tint: Brand.skyBlue
           )
           roleBadge(
             "B",
             title: "손으로 터뜨리기",
             detail: "엄지와 검지 붙이기",
-            tint: .cyan
+            tint: Brand.lavender
           )
         }
 
@@ -307,7 +320,7 @@ struct ContentView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .tint(.cyan)
+        .tint(Brand.lavender)
         .disabled(!game.canStart)
         .keyboardShortcut(.space, modifiers: [])
       }
@@ -360,7 +373,7 @@ struct ContentView: View {
       VStack(spacing: 18) {
         Image(systemName: "camera.fill")
           .font(.system(size: 50))
-          .foregroundStyle(.cyan)
+          .foregroundStyle(Brand.lavender)
         Text("카메라 권한이 필요합니다")
           .font(.title.bold())
         Text("AirPop이 손동작을 인식할 수 있도록\n시스템 설정에서 카메라 접근을 허용해주세요.")
@@ -383,17 +396,17 @@ struct ContentView: View {
         if game.isNewHighScore {
           Text("NEW BEST")
             .font(.headline.bold())
-            .foregroundStyle(.yellow)
+            .foregroundStyle(Brand.peach)
         }
         Text("\(game.score)")
           .font(.system(size: 76, weight: .black, design: .rounded))
-          .foregroundStyle(.cyan)
+          .foregroundStyle(Brand.lavender)
 
         HStack(spacing: 24) {
-          resultStat("버블", value: game.normalPopped, color: .cyan)
+          resultStat("버블", value: game.normalPopped, color: Brand.lavender)
           resultStat("폭탄", value: game.bombsTriggered, color: .red)
           resultStat("놓침", value: game.missed, color: .gray)
-          resultStat("최고 콤보", value: game.bestCombo, color: .yellow)
+          resultStat("최고 콤보", value: game.bestCombo, color: Brand.pink)
         }
 
         if let photo = game.resultPhoto {
@@ -403,9 +416,12 @@ struct ContentView: View {
             .frame(maxWidth: 460, maxHeight: 250)
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay {
+              // A soft white rim, matching the frosted-glass border used on
+              // the bubbles and on the Figma photo-card treatment.
               RoundedRectangle(cornerRadius: 18)
-                .stroke(.white.opacity(0.28), lineWidth: 1)
+                .stroke(.white.opacity(0.82), lineWidth: 1.5)
             }
+            .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
           HStack(spacing: 12) {
             Button("PNG 저장") {
@@ -418,7 +434,7 @@ struct ContentView: View {
               game.returnToReady()
             }
             .buttonStyle(.borderedProminent)
-            .tint(.cyan)
+            .tint(Brand.lavender)
             .keyboardShortcut(.return, modifiers: [])
           }
         } else {
@@ -431,7 +447,7 @@ struct ContentView: View {
             game.returnToReady()
           }
           .buttonStyle(.borderedProminent)
-          .tint(.cyan)
+          .tint(Brand.lavender)
           .keyboardShortcut(.return, modifiers: [])
         }
 
@@ -704,6 +720,19 @@ private struct GlassPanel<Content: View>: View {
       .padding(30)
       .foregroundStyle(.white)
       .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+      .background {
+        // A faint sky blue → lavender wash over the system material, so
+        // panels read as part of the bubble family rather than plain
+        // macOS chrome.
+        RoundedRectangle(cornerRadius: 28)
+          .fill(
+            LinearGradient(
+              colors: [Brand.skyBlue.opacity(0.10), Brand.lavender.opacity(0.10)],
+              startPoint: .topLeading,
+              endPoint: .bottomTrailing
+            )
+          )
+      }
       .overlay {
         RoundedRectangle(cornerRadius: 28)
           .stroke(.white.opacity(0.16), lineWidth: 1)
