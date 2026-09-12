@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CoreImage
 
 /// Layout for the "Cool" PhotoFrameCool asset (Assets.xcassets/PhotoFrameCool):
 /// a fixed 1200x1200 square with a rounded photo window cut into it, plus a
@@ -17,15 +18,20 @@ private enum FrameLayout {
 
 /// The frame art's caption ("AirPop & AirPuff / by Lauren & Luke |
 /// 2026.09.12") is baked into its pixels with a fixed name and date, so it
-/// can't be edited in place -- pixel-level inpainting against the busy
-/// bubble background left a visible seam. Instead this draws an opaque
-/// frosted plate over that exact footprint (measured directly off the
-/// baked text, top-left origin, then converted to bottom-up CG coordinates
-/// the same way `FrameLayout.windowRect` is) and renders a live caption
-/// with the real capture date on top.
+/// can't be edited in place. Rather than covering that footprint with a
+/// flat plate (which reads as an obvious box sitting on top of the art),
+/// this blurs just that region of the frame's OWN background (never the
+/// photo -- the footprint sits below the photo window, so the two never
+/// overlap) so the old text dissolves into a soft, on-brand blur with no
+/// hard edge, the same way a soft-focus vignette would, and draws a live
+/// caption with the real capture date directly on top of it.
 private enum CaptionLayout {
-  static let plateRect = CGRect(x: 255, y: 54, width: 690, height: 151)
-  static let cornerRadius: CGFloat = 22
+  /// Footprint measured directly off the baked title/subtitle text (top-left
+  /// origin), converted to bottom-up CG coordinates the same way
+  /// `FrameLayout.windowRect` is, with margin for the blur to fall off into.
+  static let softenRect = CGRect(x: 220, y: 45, width: 760, height: 165)
+  static let backgroundBlurRadius: CGFloat = 30
+  static let maskBlurRadius: CGFloat = 26
   /// Sampled from the baked title/subtitle strokes in PhotoFrameCool.png.
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
@@ -101,6 +107,7 @@ enum ResultPhotoComposer {
       context.draw(frameCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
+    softenCaptionFootprint(context: context, canvasSize: outputSize)
     drawCaption(context: context)
 
     guard let result = context.makeImage() else { return nil }
@@ -113,51 +120,97 @@ enum ResultPhotoComposer {
     return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
   }()
 
+  private static let ciContext = CIContext(options: nil)
+
+  /// A blurred copy of just the frame ART (never the photo, which the frame
+  /// art is later drawn over) so the old caption dissolves into an
+  /// unreadable, on-brand blur. Computed once and cached: it's the same
+  /// every time regardless of what photo is being composed.
+  private static let blurredFrameCGImage: CGImage? = {
+    guard let frameCGImage, let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
+    let ciImage = CIImage(cgImage: frameCGImage)
+    blur.setValue(ciImage.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(CaptionLayout.backgroundBlurRadius, forKey: kCIInputRadiusKey)
+    guard let output = blur.outputImage?.cropped(to: ciImage.extent) else { return nil }
+    return ciContext.createCGImage(output, from: ciImage.extent)
+  }()
+
+  /// A soft-edged grayscale mask the size of the whole canvas: white (fully
+  /// visible) over `CaptionLayout.softenRect`, black everywhere else, then
+  /// blurred so the boundary fades rather than cutting a hard rectangle.
+  /// Used with `CGContext.clip(to:mask:)` to blend the blurred frame art
+  /// back in only over the caption footprint.
+  private static func featheredCaptionMask(canvasSize: CGSize) -> CGImage? {
+    guard
+      let maskContext = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGImageAlphaInfo.none.rawValue
+      )
+    else { return nil }
+    maskContext.setFillColor(gray: 0, alpha: 1)
+    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
+    maskContext.setFillColor(gray: 1, alpha: 1)
+    maskContext.fill(CaptionLayout.softenRect)
+    guard let rawMask = maskContext.makeImage() else { return nil }
+
+    let ciMask = CIImage(cgImage: rawMask)
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
+    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(CaptionLayout.maskBlurRadius, forKey: kCIInputRadiusKey)
+    guard
+      let output = blur.outputImage?.cropped(to: ciMask.extent),
+      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
+    else { return rawMask }
+    return blurredMask
+  }
+
   private static let captionDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy.MM.dd"
     return formatter
   }()
 
-  /// Covers the frame art's baked-in caption with an opaque frosted plate
-  /// (see `CaptionLayout`), then draws a live caption -- the real capture
-  /// date, computed when the photo is taken -- on top.
+  /// Blends the blurred frame art back in over just the caption footprint,
+  /// through a feathered mask, so the old baked-in text dissolves without a
+  /// visible seam or box.
+  private static func softenCaptionFootprint(context: CGContext, canvasSize: CGSize) {
+    guard
+      let blurredFrameCGImage,
+      let mask = featheredCaptionMask(canvasSize: canvasSize)
+    else { return }
+    context.saveGState()
+    context.clip(to: CGRect(origin: .zero, size: canvasSize), mask: mask)
+    context.draw(blurredFrameCGImage, in: CGRect(origin: .zero, size: canvasSize))
+    context.restoreGState()
+  }
+
+  /// Draws a live caption -- the real capture date, computed when the photo
+  /// is taken -- directly over the softened footprint. No plate/box: the
+  /// blur in `softenCaptionFootprint` already makes the text legible against
+  /// the frame's own background.
   private static func drawCaption(context: CGContext) {
-    let plate = CaptionLayout.plateRect
-    let platePath = CGPath(
-      roundedRect: plate,
-      cornerWidth: CaptionLayout.cornerRadius,
-      cornerHeight: CaptionLayout.cornerRadius,
-      transform: nil
-    )
-
-    context.saveGState()
-    context.setShadow(
-      offset: CGSize(width: 0, height: -2),
-      blur: 10,
-      color: NSColor.black.withAlphaComponent(0.12).cgColor
-    )
-    context.addPath(platePath)
-    context.setFillColor(NSColor(calibratedRed: 0.96, green: 0.96, blue: 0.99, alpha: 1).cgColor)
-    context.fillPath()
-    context.restoreGState()
-
-    context.saveGState()
-    context.addPath(platePath)
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.9).cgColor)
-    context.setLineWidth(1.5)
-    context.strokePath()
-    context.restoreGState()
+    let region = CaptionLayout.softenRect
 
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
+
+    let shadow = NSShadow()
+    shadow.shadowColor = NSColor.white.withAlphaComponent(0.7)
+    shadow.shadowBlurRadius = 4
+    shadow.shadowOffset = .zero
 
     let title = NSAttributedString(
       string: "AirPop & AirPuff",
       attributes: [
         .font: NSFont.systemFont(ofSize: 34, weight: .bold),
         .foregroundColor: CaptionLayout.titleColor,
+        .shadow: shadow,
       ]
     )
     let subtitle = NSAttributedString(
@@ -166,6 +219,7 @@ enum ResultPhotoComposer {
         .font: NSFont.monospacedSystemFont(ofSize: 17, weight: .medium),
         .foregroundColor: CaptionLayout.subtitleColor,
         .kern: 0.8,
+        .shadow: shadow,
       ]
     )
 
@@ -173,11 +227,11 @@ enum ResultPhotoComposer {
     let subtitleSize = subtitle.size()
     let gap: CGFloat = 10
     let blockHeight = titleSize.height + gap + subtitleSize.height
-    let subtitleBottomY = plate.midY - blockHeight / 2
+    let subtitleBottomY = region.midY - blockHeight / 2
     let titleBottomY = subtitleBottomY + subtitleSize.height + gap
 
-    title.draw(at: CGPoint(x: plate.midX - titleSize.width / 2, y: titleBottomY))
-    subtitle.draw(at: CGPoint(x: plate.midX - subtitleSize.width / 2, y: subtitleBottomY))
+    title.draw(at: CGPoint(x: region.midX - titleSize.width / 2, y: titleBottomY))
+    subtitle.draw(at: CGPoint(x: region.midX - subtitleSize.width / 2, y: subtitleBottomY))
 
     NSGraphicsContext.restoreGraphicsState()
   }
