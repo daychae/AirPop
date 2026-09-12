@@ -25,7 +25,7 @@ private enum FrameLayout {
   /// on the rounded rect reads as a harsh, slightly jagged border where the
   /// sharp photo meets the frame art's own soft window edge; feathering it
   /// by a few points blends the two instead.
-  static let windowEdgeFeather: CGFloat = 4
+  static let windowEdgeFeather: CGFloat = 20
 
   /// PhotoFrameCoolTop's transparent center is an oval well short of the
   /// window's actual top/bottom (and, to a lesser extent, left/right)
@@ -38,7 +38,12 @@ private enum FrameLayout {
   /// window.
   static let topLayerInset: CGFloat = 70
   static var topLayerInnerRect: CGRect { windowRect.insetBy(dx: topLayerInset, dy: topLayerInset) }
-  static let topLayerInnerFeather: CGFloat = 40
+  /// Raised from 40: on a real (often dimly lit) photo, the fog fading out
+  /// over just 40pt still read as a visible seam -- a light, almost-white
+  /// band giving way abruptly to the photo's true brightness. Spreading the
+  /// same fade over a much longer distance keeps the border's fog effect
+  /// but removes the hard-looking edge.
+  static let topLayerInnerFeather: CGFloat = 120
 }
 
 /// Position/type spec for the caption, measured directly off the baked
@@ -156,7 +161,11 @@ enum ResultPhotoComposer {
       context: context
     )
 
-    context.setFillColor(NSColor.black.withAlphaComponent(0.16).cgColor)
+    // Lightened from 0.16 -- combined with the fog fading out at the
+    // window's edge (see FrameLayout.topLayerInnerFeather), the darker tint
+    // made a dim real-world photo look noticeably heavy right where the two
+    // effects overlapped.
+    context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
     context.fill(FrameLayout.windowRect)
 
     if let overlayImage {
