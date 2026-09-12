@@ -1,20 +1,17 @@
 import AppKit
 import CoreGraphics
+import CoreImage
 
 /// Layout for the "Cool" three-layer frame
-/// (PhotoFrameCoolBase/PhotoFrameCoolTop/PhotoMask in Assets.xcassets): a
-/// fixed 1200x1200 square. Base carries the background art with an empty
-/// (opaque) photo window; top carries bubbles that spill onto the photo's
-/// edges, with a transparent center covering roughly the window area only
-/// -- NOT the caption footprint below it. PhotoMask is a purpose-built
-/// alpha mask, exactly the window's size, that feathers the photo's edges
-/// (and already has the window's rounded corners baked into its alpha
-/// shape). Base still has "AirPop & AirPuff / by L & L" baked in too, but
-/// top's opaque background fully covers that footprint, so the whole
-/// caption (title, "by L & L", and the live date) is drawn fresh on top of
-/// everything instead -- per direction, kept as-is rather than matching
-/// whatever caption styling a newer frame asset drop specifies. See
-/// iOS_macOS_app_frames_updated_2/README.txt for the source spec, given in
+/// (PhotoFrameCoolBase/PhotoFrameCoolTop in Assets.xcassets): a fixed
+/// 1200x1200 square. Base carries the background art with an empty (opaque)
+/// photo window; top carries bubbles that spill onto the photo's edges,
+/// with a transparent center covering roughly the window area only -- NOT
+/// the caption footprint below it. Base still has "AirPop & AirPuff / by L
+/// & L" baked in too, but top's opaque background fully covers that
+/// footprint, so the whole caption (title, "by L & L", and the live date)
+/// is drawn fresh on top of everything instead. See
+/// iOS_macOS_app_frames_updated/README.txt for the source spec, given in
 /// top-left-origin image coordinates.
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
@@ -23,6 +20,32 @@ private enum FrameLayout {
   /// The photo window, converted from the asset's top-left-origin spec into
   /// CGContext's bottom-up coordinate space: y = canvasHeight - top - height.
   static let windowRect = CGRect(x: 140, y: 270, width: 920, height: 790)
+
+  /// How far the photo's edge fades out, in points. A hard geometric clip
+  /// on the rounded rect reads as a harsh, slightly jagged border where the
+  /// sharp photo meets the frame art's own soft window edge; feathering it
+  /// blends the two instead. Raised from 20 -- a seam was still visible at
+  /// that radius on a real photo.
+  static let windowEdgeFeather: CGFloat = 50
+
+  /// PhotoFrameCoolTop's transparent center is an oval well short of the
+  /// window's actual top/bottom (and, to a lesser extent, left/right)
+  /// edges -- measured directly off its alpha channel, the fog is already
+  /// close to fully opaque about 185-205pt in from the top/bottom edges.
+  /// Over a real photo that would look like the top and bottom got cut off
+  /// under a heavy veil. `topLayerInnerRect` is inset far enough that the
+  /// veil is confined to a border band (where it's meant to look like
+  /// bubbles spilling onto the photo) instead of eating into most of the
+  /// window.
+  static let topLayerInset: CGFloat = 70
+  static var topLayerInnerRect: CGRect { windowRect.insetBy(dx: topLayerInset, dy: topLayerInset) }
+  /// Raised twice now (40 -> 120 -> 250): on a real (often dimly lit)
+  /// photo, the fog fading out over a still-short distance kept reading as
+  /// a visible seam -- a light, almost-white band giving way abruptly to
+  /// the photo's true brightness. Spreading the same fade over a much
+  /// longer distance keeps the border's fog effect but removes the
+  /// hard-looking edge.
+  static let topLayerInnerFeather: CGFloat = 250
 }
 
 /// Position/type spec for the caption, measured directly off the baked
@@ -121,12 +144,8 @@ enum ResultPhotoComposer {
     }
 
     context.saveGState()
-    if let photoMaskCGImage {
-      // Purpose-built alpha mask exactly the size of the window (center
-      // opaque, edges feathered, corners already rounded into its alpha
-      // shape) -- replaces the earlier hand-rolled blurred-rect
-      // approximation, which still showed a seam on a real photo.
-      context.clip(to: FrameLayout.windowRect, mask: photoMaskCGImage)
+    if let mask = featheredWindowMask(canvasSize: outputSize) {
+      context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
     } else {
       let windowPath = CGPath(
         roundedRect: FrameLayout.windowRect,
@@ -144,6 +163,10 @@ enum ResultPhotoComposer {
       context: context
     )
 
+    // Lightened from 0.16 -- combined with the fog fading out at the
+    // window's edge (see FrameLayout.topLayerInnerFeather), the darker tint
+    // made a dim real-world photo look noticeably heavy right where the two
+    // effects overlapped.
     context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
     context.fill(FrameLayout.windowRect)
 
@@ -160,13 +183,17 @@ enum ResultPhotoComposer {
     context.restoreGState()
 
     // Bubbles that spill onto the photo's edges, with a transparent center,
-    // drawn after the photo so they sit on top of it near the border. No
-    // extra masking needed here anymore: the photo itself already fades
-    // out via `photoMaskCGImage`, so it blends into whatever
-    // PhotoFrameCoolTop draws on top instead of needing to keep that
-    // layer's own fog confined to a border band.
+    // drawn after the photo so they sit on top of it near the border. Kept
+    // off the window's interior beyond a border band (see
+    // `FrameLayout.topLayerInset`) so a real photo isn't heavily veiled
+    // toward its own top/bottom.
     if let topCGImage {
+      context.saveGState()
+      if let mask = topLayerMask(canvasSize: outputSize) {
+        context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
+      }
       context.draw(topCGImage, in: CGRect(origin: .zero, size: outputSize))
+      context.restoreGState()
     }
 
     drawCaption(context: context)
@@ -177,7 +204,92 @@ enum ResultPhotoComposer {
 
   private static let baseCGImage: CGImage? = loadNamedImage("PhotoFrameCoolBase")
   private static let topCGImage: CGImage? = loadNamedImage("PhotoFrameCoolTop")
-  private static let photoMaskCGImage: CGImage? = loadNamedImage("PhotoMask")
+  private static let ciContext = CIContext(options: nil)
+
+  /// A soft-edged grayscale mask the size of the whole canvas: white (fully
+  /// visible) over the rounded photo window, black everywhere else, then
+  /// blurred by `FrameLayout.windowEdgeFeather` so the boundary fades over
+  /// a few points instead of cutting a hard geometric edge. Used with
+  /// `CGContext.clip(to:mask:)` so the photo, game overlay, and dim tint
+  /// all fade out together at the window's edge.
+  private static func featheredWindowMask(canvasSize: CGSize) -> CGImage? {
+    guard
+      let maskContext = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGImageAlphaInfo.none.rawValue
+      )
+    else { return nil }
+    maskContext.setFillColor(gray: 0, alpha: 1)
+    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
+    maskContext.setFillColor(gray: 1, alpha: 1)
+    maskContext.addPath(
+      CGPath(
+        roundedRect: FrameLayout.windowRect,
+        cornerWidth: FrameLayout.cornerRadius,
+        cornerHeight: FrameLayout.cornerRadius,
+        transform: nil
+      )
+    )
+    maskContext.fillPath()
+    guard let rawMask = maskContext.makeImage() else { return nil }
+
+    let ciMask = CIImage(cgImage: rawMask)
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
+    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(FrameLayout.windowEdgeFeather, forKey: kCIInputRadiusKey)
+    guard
+      let output = blur.outputImage?.cropped(to: ciMask.extent),
+      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
+    else { return rawMask }
+    return blurredMask
+  }
+
+  /// White (bubbles/fog fully allowed) everywhere except
+  /// `FrameLayout.topLayerInnerRect`, which fades to black (fog suppressed)
+  /// over `FrameLayout.topLayerInnerFeather` points -- confines
+  /// PhotoFrameCoolTop's veil to a border band around the window instead of
+  /// its own oversized oval eating into most of the window.
+  private static func topLayerMask(canvasSize: CGSize) -> CGImage? {
+    guard
+      let maskContext = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGImageAlphaInfo.none.rawValue
+      )
+    else { return nil }
+    maskContext.setFillColor(gray: 1, alpha: 1)
+    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
+    maskContext.setFillColor(gray: 0, alpha: 1)
+    maskContext.addPath(
+      CGPath(
+        roundedRect: FrameLayout.topLayerInnerRect,
+        cornerWidth: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
+        cornerHeight: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
+        transform: nil
+      )
+    )
+    maskContext.fillPath()
+    guard let rawMask = maskContext.makeImage() else { return nil }
+
+    let ciMask = CIImage(cgImage: rawMask)
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
+    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(FrameLayout.topLayerInnerFeather, forKey: kCIInputRadiusKey)
+    guard
+      let output = blur.outputImage?.cropped(to: ciMask.extent),
+      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
+    else { return rawMask }
+    return blurredMask
+  }
 
   private static func loadNamedImage(_ name: String) -> CGImage? {
     guard let image = NSImage(named: name) else { return nil }
@@ -266,8 +378,8 @@ enum ResultPhotoComposer {
   /// from, so a centered crop was cutting off both the top of the player's
   /// head and their chest/shoulders. Weighting the vertical crop toward the
   /// top keeps the head in frame and lets the extra cropping fall on the
-  /// body below instead, which `photoMaskCGImage`'s own edge feather
-  /// already softens rather than cutting hard.
+  /// body below instead, which the eased top-layer veil (see
+  /// `FrameLayout.topLayerInset`) already softens rather than cutting hard.
   private static let verticalCropBias: CGFloat = 0.85
 
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
