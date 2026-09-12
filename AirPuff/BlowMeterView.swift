@@ -1,6 +1,60 @@
 import SwiftUI
 import UIKit
 
+/// The five pastel colors used across the AirPuff/AirPop bubble design
+/// system (see the Figma "Bubble System — Components" section). Fixed hex
+/// values, matching the ones used for the gameplay bubbles in AirPop, so the
+/// two apps read as one visual language.
+private enum BubbleColor {
+  static let skyBlue = Color(
+    red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
+  static let lavender = Color(
+    red: Double(0xBF) / 255, green: Double(0xA6) / 255, blue: Double(0xFA) / 255)
+  static let mint = Color(
+    red: Double(0x99) / 255, green: Double(0xEA) / 255, blue: Double(0xC7) / 255)
+  static let pink = Color(
+    red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
+  static let peach = Color(
+    red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
+}
+
+/// A frosted-glass pastel bubble: radial-gradient fill, soft white rim, and
+/// an outer glow/blur, matching the Bubble component spec from Figma.
+/// Optionally carries a small white sparkle accent.
+private struct FrostedBubble: View {
+  let color: Color
+  var sparkle = false
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(color.opacity(0.38))
+        .blur(radius: 14)
+        .scaleEffect(1.08)
+
+      Circle()
+        .fill(
+          RadialGradient(
+            colors: [.white.opacity(0.95), color.opacity(0.65), color.opacity(0.32)],
+            center: UnitPoint(x: 0.36, y: 0.32),
+            startRadius: 0,
+            endRadius: 90
+          )
+        )
+        .overlay {
+          Circle().strokeBorder(.white.opacity(0.85), lineWidth: 2)
+        }
+
+      if sparkle {
+        Image(systemName: "sparkle")
+          .font(.system(size: 13, weight: .bold))
+          .foregroundStyle(.white)
+          .offset(x: 22, y: -24)
+      }
+    }
+  }
+}
+
 struct BlowMeterView: View {
   @Environment(\.openURL) private var openURL
   @Environment(\.scenePhase) private var scenePhase
@@ -14,6 +68,7 @@ struct BlowMeterView: View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 18) {
+          breathIllustration
           roleCard
           connectionCard
           diagnosticsCard
@@ -59,6 +114,56 @@ struct BlowMeterView: View {
         detector.stopMonitoring()
       }
     }
+  }
+
+  /// The brand-facing hero moment: a large frosted bubble that swells while
+  /// the player blows, surrounded by small pastel support bubbles. Purely
+  /// illustrative — the functional meter/diagnostics below are unchanged.
+  private var breathIllustration: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("airpuff")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      Text("Take a breath.")
+        .font(.system(size: 30, weight: .semibold, design: .rounded))
+
+      Text("Blow gently toward your iPhone.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+
+      ZStack {
+        FrostedBubble(color: BubbleColor.skyBlue, sparkle: true)
+          .frame(width: heroDiameter, height: heroDiameter)
+          .animation(.spring(response: 0.3, dampingFraction: 0.7), value: heroDiameter)
+
+        FrostedBubble(color: BubbleColor.lavender)
+          .frame(width: 46, height: 46)
+          .offset(x: -66, y: 74)
+
+        FrostedBubble(color: BubbleColor.pink)
+          .frame(width: 28, height: 28)
+          .offset(x: -84, y: 100)
+
+        FrostedBubble(color: BubbleColor.skyBlue)
+          .frame(width: 18, height: 18)
+          .offset(x: -98, y: 114)
+      }
+      .frame(maxWidth: .infinity, minHeight: 230)
+      .padding(.top, 6)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding()
+    .background(.background, in: RoundedRectangle(cornerRadius: 18))
+  }
+
+  /// Base size plus a boost from the live meter level, so the hero bubble
+  /// visibly swells as the blow gets stronger instead of just popping to one
+  /// fixed size.
+  private var heroDiameter: CGFloat {
+    let base: CGFloat = 150
+    let boost = CGFloat(detector.meterLevel) * 40
+    return detector.isBlowing ? base + boost + 20 : base
   }
 
   /// The player holding this phone is looking at the Mac screen, so this card

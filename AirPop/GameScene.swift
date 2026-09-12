@@ -1,57 +1,151 @@
 import AppKit
+import CoreImage
 import SpriteKit
+
+/// The five pastel colors used across the AirPuff/AirPop bubble design
+/// system (see the Figma "Bubble System — Components" section). Fixed hex
+/// values, not random hues, so every bubble reads as part of one brand
+/// language rather than a rainbow.
+private enum BubblePalette: CaseIterable {
+  case skyBlue
+  case lavender
+  case mint
+  case pink
+  case peach
+
+  var color: NSColor {
+    switch self {
+    case .skyBlue:
+      return NSColor(
+        calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
+        blue: CGFloat(0xFA) / 255, alpha: 1)
+    case .lavender:
+      return NSColor(
+        calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
+        blue: CGFloat(0xFA) / 255, alpha: 1)
+    case .mint:
+      return NSColor(
+        calibratedRed: CGFloat(0x99) / 255, green: CGFloat(0xEA) / 255,
+        blue: CGFloat(0xC7) / 255, alpha: 1)
+    case .pink:
+      return NSColor(
+        calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xB8) / 255,
+        blue: CGFloat(0xD9) / 255, alpha: 1)
+    case .peach:
+      return NSColor(
+        calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xD1) / 255,
+        blue: CGFloat(0x99) / 255, alpha: 1)
+    }
+  }
+}
+
+/// Builds and caches the radial-gradient textures behind the frosted-glass
+/// fill, so bubbles of the same color/size share one image instead of each
+/// spawn redrawing a gradient from scratch.
+private enum BubbleTextureFactory {
+  private static var cache: [String: SKTexture] = [:]
+
+  static func frostedFill(color: NSColor, diameter: CGFloat) -> SKTexture {
+    // Round to a small set of buckets so nearby bubble sizes reuse a texture.
+    let bucket = max(16, (diameter / 4).rounded() * 4)
+    let key = "\(color)-\(bucket)"
+    if let cached = cache[key] { return cached }
+
+    let size = CGSize(width: bucket, height: bucket)
+    let image = NSImage(size: size, flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else { return false }
+      let colorSpace = CGColorSpaceCreateDeviceRGB()
+      let stops = [
+        NSColor.white.withAlphaComponent(0.95).cgColor,
+        color.withAlphaComponent(0.62).cgColor,
+        color.withAlphaComponent(0.30).cgColor,
+      ]
+      guard
+        let gradient = CGGradient(
+          colorsSpace: colorSpace, colors: stops as CFArray, locations: [0, 0.55, 1])
+      else { return false }
+
+      // Off-center highlight so the bubble reads as glass, not a flat disc.
+      let highlightCenter = CGPoint(
+        x: rect.midX - rect.width * 0.16, y: rect.midY + rect.height * 0.18)
+      context.drawRadialGradient(
+        gradient,
+        startCenter: highlightCenter, startRadius: 0,
+        endCenter: CGPoint(x: rect.midX, y: rect.midY), endRadius: rect.width * 0.52,
+        options: [.drawsAfterEndLocation]
+      )
+      return true
+    }
+    let texture = SKTexture(image: image)
+    cache[key] = texture
+    return texture
+  }
+}
 
 private final class BubbleNode: SKNode {
   let bubbleRadius: CGFloat
   let isBomb: Bool
 
-  private let shell: SKShapeNode
-  private let baseStrokeColor: NSColor
+  /// Frosted-glass gradient fill.
+  private let fill: SKShapeNode
+  /// Soft white rim stroke, drawn over the fill.
+  private let rim: SKShapeNode
+  private let baseRimColor = NSColor.white.withAlphaComponent(0.85)
   private let bombMark = SKNode()
 
   init(radius: CGFloat, isBomb: Bool) {
     bubbleRadius = radius
     self.isBomb = isBomb
 
-    let hue = CGFloat.random(in: 0...1)
-    baseStrokeColor = NSColor(
-      hue: hue,
-      saturation: 0.48,
-      brightness: 1,
-      alpha: 0.92
-    )
-    shell = SKShapeNode(circleOfRadius: radius)
+    let tint = BubblePalette.allCases.randomElement()?.color ?? BubblePalette.skyBlue.color
+
+    // Soft outer glow, blurred and sitting behind everything else.
+    let glowShape = SKShapeNode(circleOfRadius: radius * 0.96)
+    glowShape.fillColor = tint.withAlphaComponent(0.32)
+    glowShape.strokeColor = .clear
+    let glow = SKEffectNode()
+    glow.shouldRasterize = true
+    let blur = CIFilter(name: "CIGaussianBlur")
+    blur?.setValue(radius * 0.4, forKey: kCIInputRadiusKey)
+    glow.filter = blur
+    glow.addChild(glowShape)
+
+    // Frosted-glass body — a radial-gradient texture rather than a flat fill,
+    // so it reads as translucent rather than a solid pastel circle.
+    fill = SKShapeNode(circleOfRadius: radius)
+    fill.fillTexture = BubbleTextureFactory.frostedFill(color: tint, diameter: radius * 2)
+    fill.fillColor = .white
+    fill.strokeColor = .clear
+    fill.alpha = 0.94
+
+    rim = SKShapeNode(circleOfRadius: radius)
+    rim.fillColor = .clear
+    rim.strokeColor = NSColor.white.withAlphaComponent(0.85)
+    rim.lineWidth = max(1.6, radius * 0.045)
+    rim.glowWidth = 1.4
 
     super.init()
 
-    shell.fillColor = NSColor(
-      hue: hue,
-      saturation: 0.28,
-      brightness: 1,
-      alpha: 0.13
-    )
-    shell.strokeColor = baseStrokeColor
-    shell.lineWidth = 2.6
-    shell.glowWidth = 1.8
-    addChild(shell)
-
-    let innerRing = SKShapeNode(circleOfRadius: radius * 0.86)
-    innerRing.fillColor = .clear
-    innerRing.strokeColor = NSColor.white.withAlphaComponent(0.28)
-    innerRing.lineWidth = 0.9
-    innerRing.position = CGPoint(x: -radius * 0.07, y: radius * 0.05)
-    addChild(innerRing)
+    addChild(glow)
+    addChild(fill)
+    addChild(rim)
 
     let highlight = SKShapeNode(
       ellipseOf: CGSize(
         width: radius * 0.42,
         height: radius * 0.19
       ))
-    highlight.fillColor = NSColor.white.withAlphaComponent(0.62)
+    highlight.fillColor = NSColor.white.withAlphaComponent(0.65)
     highlight.strokeColor = .clear
     highlight.position = CGPoint(x: -radius * 0.30, y: radius * 0.36)
     highlight.zRotation = -0.55
     addChild(highlight)
+
+    // Roughly a third of bubbles get a sparkle — never all of them, so it
+    // stays a highlight rather than visual noise.
+    if !isBomb, Double.random(in: 0...1) < 0.35 {
+      addChild(Self.sparkleNode(radius: radius))
+    }
 
     if isBomb {
       configureBombMark(radius: radius)
@@ -76,17 +170,43 @@ private final class BubbleNode: SKNode {
 
     if isBomb {
       bombMark.alpha = hovered ? 0.55 : (nearby ? 0.27 : 0.08)
-      shell.strokeColor =
+      rim.strokeColor =
         hovered
         ? NSColor.systemRed.withAlphaComponent(0.92)
-        : baseStrokeColor
+        : baseRimColor
     }
   }
 
   func revealBomb() {
     bombMark.alpha = 1
-    shell.strokeColor = .systemRed
-    shell.fillColor = NSColor.systemRed.withAlphaComponent(0.20)
+    rim.strokeColor = .systemRed
+    fill.fillTexture = nil
+    fill.fillColor = NSColor.systemRed.withAlphaComponent(0.55)
+  }
+
+  /// A small 4-point sparkle/twinkle, matching the accent mark used sparingly
+  /// on bubbles in the Figma bubble system.
+  private static func sparkleNode(radius: CGFloat) -> SKShapeNode {
+    let starRadius = radius * 0.22
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: 0, y: starRadius))
+    path.addQuadCurve(to: CGPoint(x: starRadius * 0.30, y: 0), control: CGPoint(x: 0, y: 0))
+    path.addQuadCurve(to: CGPoint(x: 0, y: -starRadius), control: CGPoint(x: 0, y: 0))
+    path.addQuadCurve(to: CGPoint(x: -starRadius * 0.30, y: 0), control: CGPoint(x: 0, y: 0))
+    path.addQuadCurve(to: CGPoint(x: 0, y: starRadius), control: CGPoint(x: 0, y: 0))
+    path.closeSubpath()
+
+    let sparkle = SKShapeNode(path: path)
+    sparkle.fillColor = .white
+    sparkle.strokeColor = .clear
+    sparkle.glowWidth = 1.2
+    sparkle.alpha = 0.92
+    sparkle.position = CGPoint(
+      x: radius * CGFloat.random(in: 0.40...0.58),
+      y: radius * CGFloat.random(in: 0.42...0.62)
+    )
+    sparkle.zRotation = CGFloat.random(in: -0.3...0.3)
+    return sparkle
   }
 
   private func configureBombMark(radius: CGFloat) {

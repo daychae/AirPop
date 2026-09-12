@@ -69,8 +69,6 @@
 		A20000000000000000000034 /* Assets/Sounds/countdown_tick.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/countdown_tick.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000035 /* Assets/Sounds/game_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_start.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000036 /* Assets/Sounds/game_over.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_over.wav; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000040 /* TrainPinchGestureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainPinchGestureClassifier.swift; sourceTree = "<group>"; };
-		A20000000000000000000041 /* ValidatePinchGestureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatePinchGestureClassifier.swift; sourceTree = "<group>"; };
 		B20000000000000000000000 /* AirPuff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirPuff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000001 /* AirPuffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPuffApp.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* BlowMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlowMeterView.swift; sourceTree = "<group>"; };
@@ -162,8 +160,6 @@
 		A40000000000000000000011 /* Tools */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000040 /* TrainPinchGestureClassifier.swift */,
-				A20000000000000000000041 /* ValidatePinchGestureClassifier.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -254,6 +250,9 @@
 				Base,
 			);
 			mainGroup = A40000000000000000000001;
+			packageReferences = (
+				13D9C6B83055527900EE4014 /* XCLocalSwiftPackageReference "Tools/PinchClassifierTools" */,
+			);
 			productRefGroup = A40000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -497,6 +496,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		13D9C6B83055527900EE4014 /* XCLocalSwiftPackageReference "Tools/PinchClassifierTools" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Tools/PinchClassifierTools;
+		};
+/* End XCLocalSwiftPackageReference section */
 	};
 	rootObject = A60000000000000000000001 /* Project object */;
 }
