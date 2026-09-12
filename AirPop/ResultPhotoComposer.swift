@@ -26,6 +26,19 @@ private enum FrameLayout {
   /// sharp photo meets the frame art's own soft window edge; feathering it
   /// by a few points blends the two instead.
   static let windowEdgeFeather: CGFloat = 4
+
+  /// PhotoFrameCoolTop's transparent center is an oval well short of the
+  /// window's actual top/bottom (and, to a lesser extent, left/right)
+  /// edges -- measured directly off its alpha channel, the fog is already
+  /// close to fully opaque about 185-205pt in from the top/bottom edges.
+  /// Over a real photo that would look like the top and bottom got cut off
+  /// under a heavy veil. `topLayerInnerRect` is inset far enough that the
+  /// veil is confined to a border band (where it's meant to look like
+  /// bubbles spilling onto the photo) instead of eating into most of the
+  /// window.
+  static let topLayerInset: CGFloat = 70
+  static var topLayerInnerRect: CGRect { windowRect.insetBy(dx: topLayerInset, dy: topLayerInset) }
+  static let topLayerInnerFeather: CGFloat = 40
 }
 
 /// Position/type spec for the caption, measured directly off the baked
@@ -54,9 +67,12 @@ private enum CaptionLayout {
   /// can afford to read bigger than the source design.
   static let titleFontSize: CGFloat = 34 * 2
   static let titleFont = sfProExpanded(weight: .bold, size: titleFontSize)
+  /// Lavender ("Pop Lilac"), AirPop's own color in the shared bubble design
+  /// system -- one of the actual pastel colors already in the frame art,
+  /// picked because the previous navy read too strong/dark against it.
   static let titleColor = NSColor(
-    calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
-    blue: CGFloat(0xA8) / 255, alpha: 1)
+    calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
+    blue: CGFloat(0xFA) / 255, alpha: 1)
   /// Center of the "AirPop & AirPuff" title, at x600,y1039 (top-left
   /// origin) -- the midpoint of its measured bounding box in the baked art,
   /// kept as the center even though the title itself is now drawn larger.
@@ -66,17 +82,20 @@ private enum CaptionLayout {
   /// row/font size, sitting on the same baseline band as "by L & L" in the
   /// baked art (y 1106...1131, center 1118.5, matching the README's date
   /// baseline band of y 1099...1135, center 1117). The README's date spec
-  /// called for IBM Plex Mono Regular, 27px, 0.24em letter-spacing; now
-  /// using the same SF Pro Expanded family as the title instead.
+  /// called for IBM Plex Mono Regular; the SF Pro Expanded swap for the
+  /// title didn't read as well at this size/weight for this row, so it
+  /// keeps the original monospaced substitute.
   static let fontSize: CGFloat = 27
-  static let rowFont = sfProExpanded(weight: .regular, size: fontSize)
+  static let rowFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
   /// The date and divider keep the spec's 0.24em; "by L & L" reads too
   /// loose at that tracking, so it's tightened.
   static let dateKerning: CGFloat = fontSize * 0.24
   static let byLineKerning: CGFloat = fontSize * 0.1
+  /// Sky blue, the AirPuff half of the same bubble palette -- also a
+  /// lighter pastel already in the art, distinct from the title's lavender.
   static let rowColor = NSColor(
-    calibratedRed: CGFloat(0x3F) / 255, green: CGFloat(0x4A) / 255,
-    blue: CGFloat(0x86) / 255, alpha: 1)
+    calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
+    blue: CGFloat(0xFA) / 255, alpha: 1)
   static let rowCenterY = canvasHeight - 1117
   /// Center of the date text specifically, at x713 (top-left origin) in
   /// the README's spec.
@@ -156,9 +175,17 @@ enum ResultPhotoComposer {
     context.restoreGState()
 
     // Bubbles that spill onto the photo's edges, with a transparent center,
-    // drawn after the photo so they sit on top of it near the border.
+    // drawn after the photo so they sit on top of it near the border. Kept
+    // off the window's interior beyond a border band (see
+    // `FrameLayout.topLayerInset`) so a real photo isn't heavily veiled
+    // toward its own top/bottom.
     if let topCGImage {
+      context.saveGState()
+      if let mask = topLayerMask(canvasSize: outputSize) {
+        context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
+      }
       context.draw(topCGImage, in: CGRect(origin: .zero, size: outputSize))
+      context.restoreGState()
     }
 
     drawCaption(context: context)
@@ -207,6 +234,48 @@ enum ResultPhotoComposer {
     guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
     blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
     blur.setValue(FrameLayout.windowEdgeFeather, forKey: kCIInputRadiusKey)
+    guard
+      let output = blur.outputImage?.cropped(to: ciMask.extent),
+      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
+    else { return rawMask }
+    return blurredMask
+  }
+
+  /// White (bubbles/fog fully allowed) everywhere except
+  /// `FrameLayout.topLayerInnerRect`, which fades to black (fog suppressed)
+  /// over `FrameLayout.topLayerInnerFeather` points -- confines
+  /// PhotoFrameCoolTop's veil to a border band around the window instead of
+  /// its own oversized oval eating into most of the window.
+  private static func topLayerMask(canvasSize: CGSize) -> CGImage? {
+    guard
+      let maskContext = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGImageAlphaInfo.none.rawValue
+      )
+    else { return nil }
+    maskContext.setFillColor(gray: 1, alpha: 1)
+    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
+    maskContext.setFillColor(gray: 0, alpha: 1)
+    maskContext.addPath(
+      CGPath(
+        roundedRect: FrameLayout.topLayerInnerRect,
+        cornerWidth: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
+        cornerHeight: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
+        transform: nil
+      )
+    )
+    maskContext.fillPath()
+    guard let rawMask = maskContext.makeImage() else { return nil }
+
+    let ciMask = CIImage(cgImage: rawMask)
+    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
+    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
+    blur.setValue(FrameLayout.topLayerInnerFeather, forKey: kCIInputRadiusKey)
     guard
       let output = blur.outputImage?.cropped(to: ciMask.extent),
       let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
