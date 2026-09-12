@@ -103,7 +103,18 @@ final class CameraHandTracker: NSObject, ObservableObject {
     var previousPinchRatio: CGFloat?
   }
 
+  /// Floor for a nearly-still hand: heavy smoothing so an aiming hand doesn't
+  /// visibly shake. `smooth(_:from:)` raises this while the hand is actually
+  /// moving -- fixed at 0.38 the aim lagged a fast reach for a bubble that
+  /// had already risen well up the screen, since a low-pass filter needs
+  /// several frames to catch up after a big jump, and the player was often
+  /// already pinching by the time it did. That mismatch is invisible for a
+  /// bubble that's still near the bottom (a short, slow reach), which is why
+  /// only the higher, further-away pops were missing.
   private let smoothingFactor: CGFloat = 0.38
+  /// Per-frame movement (in image-height units, like every other distance
+  /// here) above which the smoothed point tracks essentially immediately.
+  private let fastMovementGain: CGFloat = 12
   /// Below this the hand is closing enough to be aiming at something.
   private let pinchIntentRatio: CGFloat = 0.62
   /// Above this the hand has clearly reopened, so aim is free again.
@@ -582,9 +593,15 @@ final class CameraHandTracker: NSObject, ObservableObject {
 
   private func smooth(_ point: CGPoint, from previous: CGPoint?) -> CGPoint {
     guard let previous else { return point }
+    // Raise the blend factor with how far the hand moved this frame, so a
+    // fast reach is tracked close to live instead of trailing behind by
+    // several frames of catch-up, while a nearly-still hand keeps the full
+    // smoothing that keeps its aim from visibly shaking.
+    let movement = distance(point, previous)
+    let factor = min(1, smoothingFactor + movement * fastMovementGain)
     return CGPoint(
-      x: previous.x + (point.x - previous.x) * smoothingFactor,
-      y: previous.y + (point.y - previous.y) * smoothingFactor
+      x: previous.x + (point.x - previous.x) * factor,
+      y: previous.y + (point.y - previous.y) * factor
     )
   }
 
