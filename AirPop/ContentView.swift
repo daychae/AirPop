@@ -168,7 +168,7 @@ struct ContentView: View {
             .font(.caption.bold())
             .foregroundStyle(.white.opacity(0.72))
           Text("\(game.timeRemaining)")
-            .font(.system(size: 40, weight: .black, design: .default))
+            .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
         }
@@ -212,7 +212,7 @@ struct ContentView: View {
         startPanel
       case .countdown(let value):
         Text("\(value)")
-          .font(.system(size: 150, weight: .black, design: .default))
+          .font(.system(size: 150, weight: .bold, design: .default))
           .foregroundStyle(.white)
           .shadow(color: Brand.lavender, radius: 22)
       case .playing:
@@ -254,7 +254,7 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 18) {
         Text("AIR POP")
-          .font(.system(size: 54, weight: .black, design: .default))
+          .font(.system(size: 54, weight: .bold, design: .default))
           .foregroundStyle(
             LinearGradient(
               colors: [.white, Brand.lavender],
@@ -334,7 +334,7 @@ struct ContentView: View {
   ) -> some View {
     VStack(spacing: 5) {
       Text(letter)
-        .font(.system(size: 26, weight: .black, design: .default))
+        .font(.system(size: 26, weight: .bold, design: .default))
         .foregroundStyle(tint)
         .frame(width: 46, height: 46)
         .background(tint.opacity(0.16), in: Circle())
@@ -390,14 +390,14 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 16) {
         Text("TIME UP!")
-          .font(.system(size: 44, weight: .black, design: .default))
+          .font(.system(size: 44, weight: .bold, design: .default))
         if game.isNewHighScore {
           Text("NEW BEST")
             .font(.headline.bold())
             .foregroundStyle(Brand.peach)
         }
         Text("\(game.score)")
-          .font(.system(size: 76, weight: .black, design: .default))
+          .font(.system(size: 76, weight: .bold, design: .default))
           .foregroundStyle(Brand.lavender)
 
         HStack(spacing: 24) {
@@ -642,7 +642,7 @@ struct ContentView: View {
         .font(.caption.bold())
         .foregroundStyle(.white.opacity(0.68))
       Text(value)
-        .font(.system(size: 32, weight: .black, design: .default))
+        .font(.system(size: 32, weight: .bold, design: .default))
         .foregroundStyle(tint)
         .contentTransition(.numericText())
     }

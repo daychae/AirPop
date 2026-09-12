@@ -114,7 +114,9 @@ final class CameraHandTracker: NSObject, ObservableObject {
   private let smoothingFactor: CGFloat = 0.38
   /// Per-frame movement (in image-height units, like every other distance
   /// here) above which the smoothed point tracks essentially immediately.
-  private let fastMovementGain: CGFloat = 12
+  /// Raised from 12: reaching for a bubble that's risen far up the screen
+  /// still lagged noticeably at that gain.
+  private let fastMovementGain: CGFloat = 20
   /// Below this the hand is closing enough to be aiming at something.
   private let pinchIntentRatio: CGFloat = 0.62
   /// Above this the hand has clearly reopened, so aim is free again.
@@ -493,12 +495,15 @@ final class CameraHandTracker: NSObject, ObservableObject {
       let previousRatio = previousTrack?.previousPinchRatio
 
       // Lock on the position the hand held *before* the fingers started
-      // closing, not on where they end up once closed.
+      // closing, not on where they end up once closed. Uses this frame's
+      // smoothed point, not the previous one: for a bubble that's risen far
+      // enough to need a fast, still-arriving reach, that extra frame of
+      // lag was enough to lock a little short of the target.
       let crossedIntent =
         detection.pinchRatio < pinchIntentRatio
         && (previousRatio ?? detection.pinchRatio) >= pinchIntentRatio
       if lockedPoint == nil, crossedIntent || isPinching {
-        lockedPoint = previousSmoothed ?? smoothed
+        lockedPoint = smoothed
       }
       if detection.pinchRatio > pinchReleaseRatio {
         lockedPoint = nil

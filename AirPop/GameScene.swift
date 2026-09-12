@@ -572,7 +572,11 @@ final class GameScene: SKScene {
         bubble.node.position.x - point.x,
         bubble.node.position.y - point.y
       )
-      return distance <= bubble.node.bubbleRadius * 1.18
+      // Loosened from 1.18: even with the aim-tracking fix, a bubble that
+      // has risen further requires a bigger, faster reach, and the aim can
+      // still land a little short of dead-center by the time the pinch
+      // actually closes.
+      return distance <= bubble.node.bubbleRadius * 1.4
         ? (index, distance)
         : nil
     }

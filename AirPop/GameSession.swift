@@ -115,6 +115,16 @@ final class GameSession: ObservableObject {
     }
   }
 
+  /// Hand tracking flickers frame to frame -- a single missed frame during
+  /// the 3-2-1 countdown was enough to send the player back to the ready
+  /// screen, which felt like the hand tracking itself kept breaking.
+  /// `beginCountdown` only re-checks the conditions that don't jitter once
+  /// it's running; a genuine hand loss once play actually starts is still
+  /// caught by `handleHandPoses`'s existing pause logic below.
+  private var canStartIgnoringHands: Bool {
+    isModelReady && isPeerConnected && isPeerMicReady
+  }
+
   func beginCountdown() {
     guard phase == .ready, canStart else { return }
     countdownTask?.cancel()
@@ -123,7 +133,7 @@ final class GameSession: ObservableObject {
       guard let self else { return }
 
       for value in [3, 2, 1] {
-        guard !Task.isCancelled, self.canStart else {
+        guard !Task.isCancelled, self.canStartIgnoringHands else {
           self.phase = .ready
           return
         }
@@ -132,7 +142,7 @@ final class GameSession: ObservableObject {
         try? await Task.sleep(for: .seconds(1))
       }
 
-      guard !Task.isCancelled, self.canStart else {
+      guard !Task.isCancelled, self.canStartIgnoringHands else {
         self.phase = .ready
         return
       }
