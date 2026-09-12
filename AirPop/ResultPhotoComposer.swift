@@ -24,8 +24,9 @@ private enum FrameLayout {
   /// How far the photo's edge fades out, in points. A hard geometric clip
   /// on the rounded rect reads as a harsh, slightly jagged border where the
   /// sharp photo meets the frame art's own soft window edge; feathering it
-  /// by a few points blends the two instead.
-  static let windowEdgeFeather: CGFloat = 20
+  /// blends the two instead. Raised from 20 -- a seam was still visible at
+  /// that radius on a real photo.
+  static let windowEdgeFeather: CGFloat = 50
 
   /// PhotoFrameCoolTop's transparent center is an oval well short of the
   /// window's actual top/bottom (and, to a lesser extent, left/right)
@@ -38,12 +39,13 @@ private enum FrameLayout {
   /// window.
   static let topLayerInset: CGFloat = 70
   static var topLayerInnerRect: CGRect { windowRect.insetBy(dx: topLayerInset, dy: topLayerInset) }
-  /// Raised from 40: on a real (often dimly lit) photo, the fog fading out
-  /// over just 40pt still read as a visible seam -- a light, almost-white
-  /// band giving way abruptly to the photo's true brightness. Spreading the
-  /// same fade over a much longer distance keeps the border's fog effect
-  /// but removes the hard-looking edge.
-  static let topLayerInnerFeather: CGFloat = 120
+  /// Raised twice now (40 -> 120 -> 250): on a real (often dimly lit)
+  /// photo, the fog fading out over a still-short distance kept reading as
+  /// a visible seam -- a light, almost-white band giving way abruptly to
+  /// the photo's true brightness. Spreading the same fade over a much
+  /// longer distance keeps the border's fog effect but removes the
+  /// hard-looking edge.
+  static let topLayerInnerFeather: CGFloat = 250
 }
 
 /// Position/type spec for the caption, measured directly off the baked

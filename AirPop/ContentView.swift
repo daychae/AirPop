@@ -142,9 +142,9 @@ struct ContentView: View {
     .onChange(of: game.timeRemaining) { _, remaining in
       // Set once, not toggled every second: repeatForever takes it from
       // there. Only reset when a fresh round's timer resets past it.
-      if remaining == 10 {
+      if remaining == 5 {
         isFinalCountdownPulsing = true
-      } else if remaining > 10 {
+      } else if remaining > 5 {
         isFinalCountdownPulsing = false
       }
     }
@@ -181,7 +181,7 @@ struct ContentView: View {
             .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
-            // The result photo is captured with 10 seconds left, so the
+            // The result photo is captured with 5 seconds left, so the
             // blink (and the matching tick sound in GameSession) doubles as
             // a heads-up that the photo moment is coming.
             .opacity(isFinalCountdownPulsing ? 0.35 : 1)

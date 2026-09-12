@@ -25,7 +25,6 @@
 		A10000000000000000000023 /* HostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HostAddress.swift */; };
 		A10000000000000000000024 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* AudioManager.swift */; };
 		A10000000000000000000025 /* ResultPhotoComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* ResultPhotoComposer.swift */; };
-		A10000000000000000000050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000050 /* Assets.xcassets */; };
 		A10000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */; };
 		A10000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */; };
 		A10000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */; };
@@ -33,14 +32,15 @@
 		A10000000000000000000034 /* Assets/Sounds/countdown_tick.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000034 /* Assets/Sounds/countdown_tick.wav */; };
 		A10000000000000000000035 /* Assets/Sounds/game_start.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035 /* Assets/Sounds/game_start.wav */; };
 		A10000000000000000000036 /* Assets/Sounds/game_over.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000036 /* Assets/Sounds/game_over.wav */; };
+		A10000000000000000000050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000050 /* Assets.xcassets */; };
 		B10000000000000000000001 /* AirPuffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* AirPuffApp.swift */; };
 		B10000000000000000000002 /* BlowMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* BlowMeterView.swift */; };
 		B10000000000000000000003 /* BlowDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* BlowDetector.swift */; };
 		B10000000000000000000004 /* AirPopConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* AirPopConnection.swift */; };
-		B10000000000000000000050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000050 /* Assets.xcassets */; };
 		B10000000000000000000020 /* AirPopProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* AirPopProtocol.swift */; };
 		B10000000000000000000021 /* MonotonicClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* MonotonicClock.swift */; };
 		B10000000000000000000022 /* AirPopLinkStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* AirPopLinkStats.swift */; };
+		B10000000000000000000050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000050 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,7 +64,6 @@
 		A20000000000000000000021 /* HostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAddress.swift; sourceTree = "<group>"; };
 		A20000000000000000000022 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 		A20000000000000000000023 /* ResultPhotoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPhotoComposer.swift; sourceTree = "<group>"; };
-		A20000000000000000000050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_01.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_02.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_03.wav; sourceTree = SOURCE_ROOT; };
@@ -72,6 +71,7 @@
 		A20000000000000000000034 /* Assets/Sounds/countdown_tick.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/countdown_tick.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000035 /* Assets/Sounds/game_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_start.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000036 /* Assets/Sounds/game_over.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/game_over.wav; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B20000000000000000000000 /* AirPuff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirPuff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000001 /* AirPuffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPuffApp.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* BlowMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlowMeterView.swift; sourceTree = "<group>"; };
@@ -375,6 +375,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 489Y33LB79;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AirPop/Info.plist;
@@ -401,6 +402,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 489Y33LB79;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AirPop/Info.plist;

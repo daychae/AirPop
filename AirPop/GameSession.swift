@@ -192,17 +192,17 @@ final class GameSession: ObservableObject {
       guard let self else { return }
       self.timeRemaining = remaining
 
-      // Capture the result photo with 10 seconds still to play, not at the
+      // Capture the result photo with 5 seconds still to play, not at the
       // very end: mid-action (a hand mid-pinch, bubbles still on screen)
       // makes a livelier photo than whatever the screen happens to look
       // like the instant the round stops.
-      if remaining == 10, self.resultPhoto == nil {
+      if remaining == 5, self.resultPhoto == nil {
         self.resultPhoto = self.resultPhotoProvider?(self.score, self.bestCombo)
       }
 
-      // Same tick used for the pre-round 3-2-1, so the last ten seconds
+      // Same tick used for the pre-round 3-2-1, so the last five seconds
       // read as a countdown too.
-      if (1...10).contains(remaining) {
+      if (1...5).contains(remaining) {
         AudioManager.shared.play(GameSound.countdownTick)
       }
     }
@@ -234,7 +234,7 @@ final class GameSession: ObservableObject {
 
   private func finishRound() {
     guard phase == .playing || phase.isPaused else { return }
-    // Normally already captured at the 10-seconds-remaining mark in
+    // Normally already captured at the 5-seconds-remaining mark in
     // onTimeChanged; this is only a fallback for a round that somehow ends
     // before reaching it.
     if resultPhoto == nil {
