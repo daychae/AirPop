@@ -82,7 +82,11 @@ enum ResultPhotoComposer {
     context.fill(FrameLayout.windowRect)
 
     if let overlayImage {
-      context.draw(overlayImage, in: FrameLayout.windowRect)
+      // Aspect-fill like the camera layer, not a plain stretch-to-rect draw:
+      // the SpriteKit scene's aspect ratio (scene.size, i.e. `canvasSize`)
+      // matches the on-screen game window, not the frame's 920x790 window,
+      // so drawing it straight into `windowRect` squashed it vertically.
+      drawAspectFill(overlayImage, in: FrameLayout.windowRect, context: context)
     }
 
     drawScoreBadge(score: score, bestCombo: bestCombo, window: FrameLayout.windowRect, context: context)
@@ -161,7 +165,7 @@ enum ResultPhotoComposer {
       attributes: [
         .font: NSFont.monospacedSystemFont(ofSize: 17, weight: .medium),
         .foregroundColor: CaptionLayout.subtitleColor,
-        .kern: 2.5,
+        .kern: 0.8,
       ]
     )
 
@@ -178,31 +182,51 @@ enum ResultPhotoComposer {
     NSGraphicsContext.restoreGraphicsState()
   }
 
-  private static func drawMirroredAspectFill(
-    _ image: CGImage,
-    in bounds: CGRect,
-    context: CGContext
-  ) {
-    let sourceSize = CGSize(width: image.width, height: image.height)
+  private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
     let scale = max(
-      bounds.width / sourceSize.width,
-      bounds.height / sourceSize.height
+      bounds.width / source.width,
+      bounds.height / source.height
     )
-    let drawSize = CGSize(
-      width: sourceSize.width * scale,
-      height: sourceSize.height * scale
-    )
-    let drawRect = CGRect(
+    let drawSize = CGSize(width: source.width * scale, height: source.height * scale)
+    return CGRect(
       x: (bounds.width - drawSize.width) * 0.5,
       y: (bounds.height - drawSize.height) * 0.5,
       width: drawSize.width,
       height: drawSize.height
     )
+  }
+
+  private static func drawMirroredAspectFill(
+    _ image: CGImage,
+    in bounds: CGRect,
+    context: CGContext
+  ) {
+    let drawRect = aspectFillRect(source: CGSize(width: image.width, height: image.height), in: bounds)
 
     context.saveGState()
     context.translateBy(x: bounds.origin.x, y: bounds.origin.y)
     context.translateBy(x: bounds.width, y: 0)
     context.scaleBy(x: -1, y: 1)
+    context.interpolationQuality = .high
+    context.draw(image, in: drawRect)
+    context.restoreGState()
+  }
+
+  /// Same aspect-fill as `drawMirroredAspectFill`, without the horizontal
+  /// flip: the SpriteKit overlay is already drawn in mirrored screen space
+  /// (bubble positions come from `CameraCoordinateMapper`-translated hand
+  /// coordinates, which already account for the camera mirroring), so
+  /// flipping it again here would misalign bubbles from where they were
+  /// popped relative to the mirrored camera feed.
+  private static func drawAspectFill(
+    _ image: CGImage,
+    in bounds: CGRect,
+    context: CGContext
+  ) {
+    let drawRect = aspectFillRect(source: CGSize(width: image.width, height: image.height), in: bounds)
+
+    context.saveGState()
+    context.translateBy(x: bounds.origin.x, y: bounds.origin.y)
     context.interpolationQuality = .high
     context.draw(image, in: drawRect)
     context.restoreGState()
