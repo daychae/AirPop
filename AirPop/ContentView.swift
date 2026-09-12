@@ -24,6 +24,7 @@ struct ContentView: View {
   @State private var showsDiagnostics = false
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
+  @State private var isFinalCountdownPulsing = false
 
   var body: some View {
     ZStack {
@@ -138,6 +139,15 @@ struct ContentView: View {
       // The Mac owns round state, so the phone is told rather than asked.
       blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
     }
+    .onChange(of: game.timeRemaining) { _, remaining in
+      // Set once, not toggled every second: repeatForever takes it from
+      // there. Only reset when a fresh round's timer resets past it.
+      if remaining == 10 {
+        isFinalCountdownPulsing = true
+      } else if remaining > 10 {
+        isFinalCountdownPulsing = false
+      }
+    }
     .onChange(of: showsDiagnostics) { _, isShown in
       // Interfaces come and go while the app runs, most notably when a USB
       // cable is plugged in, so re-read rather than trusting the launch value.
@@ -171,6 +181,14 @@ struct ContentView: View {
             .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
+            // The result photo is captured with 10 seconds left, so the
+            // blink (and the matching tick sound in GameSession) doubles as
+            // a heads-up that the photo moment is coming.
+            .opacity(isFinalCountdownPulsing ? 0.35 : 1)
+            .animation(
+              .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
+              value: isFinalCountdownPulsing
+            )
         }
         .frame(width: 130)
         .padding(.vertical, 10)

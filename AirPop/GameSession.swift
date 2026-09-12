@@ -189,7 +189,22 @@ final class GameSession: ObservableObject {
       self?.missed += 1
     }
     scene.onTimeChanged = { [weak self] remaining in
-      self?.timeRemaining = remaining
+      guard let self else { return }
+      self.timeRemaining = remaining
+
+      // Capture the result photo with 10 seconds still to play, not at the
+      // very end: mid-action (a hand mid-pinch, bubbles still on screen)
+      // makes a livelier photo than whatever the screen happens to look
+      // like the instant the round stops.
+      if remaining == 10, self.resultPhoto == nil {
+        self.resultPhoto = self.resultPhotoProvider?(self.score, self.bestCombo)
+      }
+
+      // Same tick used for the pre-round 3-2-1, so the last ten seconds
+      // read as a countdown too.
+      if (1...10).contains(remaining) {
+        AudioManager.shared.play(GameSound.countdownTick)
+      }
     }
     scene.onRoundEnded = { [weak self] in
       self?.finishRound()
@@ -219,7 +234,12 @@ final class GameSession: ObservableObject {
 
   private func finishRound() {
     guard phase == .playing || phase.isPaused else { return }
-    resultPhoto = resultPhotoProvider?(score, bestCombo)
+    // Normally already captured at the 10-seconds-remaining mark in
+    // onTimeChanged; this is only a fallback for a round that somehow ends
+    // before reaching it.
+    if resultPhoto == nil {
+      resultPhoto = resultPhotoProvider?(score, bestCombo)
+    }
     phase = .result
     AudioManager.shared.play(GameSound.roundOver)
     isNewHighScore = score > highScore
