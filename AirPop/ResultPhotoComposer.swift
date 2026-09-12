@@ -1,9 +1,13 @@
 import AppKit
 import CoreGraphics
 
-/// Lavender ("Pop Lilac"), AirPop's own color in the bubble design system,
-/// used for the score line baked into the exported result photo.
+/// AirPop's lavender ("Pop Lilac") and AirPuff's sky blue from the shared
+/// bubble design system, used for the score line and the card frame baked
+/// into the exported result photo.
 private enum Brand {
+  static let skyBlue = NSColor(
+    calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
+    blue: CGFloat(0xFA) / 255, alpha: 1)
   static let lavender = NSColor(
     calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
     blue: CGFloat(0xFA) / 255, alpha: 1)
@@ -38,6 +42,21 @@ enum ResultPhotoComposer {
       return nil
     }
 
+    // The same rounded rect the SwiftUI preview clips to (see ContentView's
+    // `RoundedRectangle(cornerRadius: 18)` on the photo), so the saved PNG
+    // matches what the player already saw instead of showing hard corners.
+    let margin: CGFloat = 12
+    let cornerRadius = outputSize.width * 0.035
+    let cardRect = CGRect(origin: .zero, size: outputSize).insetBy(dx: margin, dy: margin)
+    let cardPath = CGPath(
+      roundedRect: cardRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+
+    drawCardGlow(path: cardPath, context: context)
+
+    context.saveGState()
+    context.addPath(cardPath)
+    context.clip()
+
     drawMirroredAspectFill(
       cameraImage,
       in: CGRect(origin: .zero, size: outputSize),
@@ -58,8 +77,61 @@ enum ResultPhotoComposer {
       context: context
     )
 
+    context.restoreGState()
+
+    drawCardFrame(path: cardPath, size: outputSize, context: context)
+
     guard let result = context.makeImage() else { return nil }
     return NSImage(cgImage: result, size: outputSize)
+  }
+
+  /// A soft sky blue → lavender halo behind the rounded card, matching the
+  /// glow drawn behind bubbles in GameScene. Drawn before the clip so it
+  /// spills outside the card edge instead of being cut off, and the opaque
+  /// fill it needs to cast a shadow is fully hidden once the clipped photo
+  /// content is drawn on top.
+  private static func drawCardGlow(path: CGPath, context: CGContext) {
+    context.saveGState()
+    context.setShadow(
+      offset: .zero,
+      blur: 22,
+      color: Brand.lavender.withAlphaComponent(0.55).cgColor
+    )
+    context.addPath(path)
+    context.setFillColor(NSColor.black.cgColor)
+    context.fillPath()
+    context.restoreGState()
+  }
+
+  /// A sky blue → lavender gradient rim around the rounded card, standing in
+  /// for a flat stroke so the one photo AirPop and AirPuff produce together
+  /// carries both apps' colors.
+  private static func drawCardFrame(path: CGPath, size: CGSize, context: CGContext) {
+    let borderWidth = max(3, size.width * 0.004)
+    let strokedPath = path.copy(
+      strokingWithWidth: borderWidth,
+      lineCap: .round,
+      lineJoin: .round,
+      miterLimit: 1
+    )
+
+    context.saveGState()
+    context.addPath(strokedPath)
+    context.clip()
+
+    if let gradient = CGGradient(
+      colorsSpace: CGColorSpaceCreateDeviceRGB(),
+      colors: [Brand.skyBlue.cgColor, Brand.lavender.cgColor] as CFArray,
+      locations: [0, 1]
+    ) {
+      context.drawLinearGradient(
+        gradient,
+        start: CGPoint(x: 0, y: size.height),
+        end: CGPoint(x: size.width, y: 0),
+        options: []
+      )
+    }
+    context.restoreGState()
   }
 
   private static func drawMirroredAspectFill(
@@ -113,14 +185,6 @@ enum ResultPhotoComposer {
         options: []
       )
     }
-
-    // A soft white rim, matching the frosted-glass border used on the
-    // bubbles and on the Figma photo-card treatment.
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.82).cgColor)
-    context.setLineWidth(max(2, size.width * 0.002))
-    context.stroke(
-      CGRect(origin: .zero, size: size).insetBy(dx: 12, dy: 12)
-    )
 
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
