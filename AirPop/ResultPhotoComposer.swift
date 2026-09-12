@@ -27,21 +27,49 @@ private enum FrameLayout {
 /// `FrameLayout.windowRect` is) plus the date/divider spec from
 /// iOS_macOS_app_frames_updated/README.txt.
 private enum CaptionLayout {
-  static let titleFont = NSFont.systemFont(ofSize: 34, weight: .bold)
+  /// Pretendard if it's installed, else Inter, else SF Pro (the system
+  /// default) -- checked at runtime rather than assumed, since neither
+  /// Pretendard nor Inter is bundled into this project; on a machine
+  /// without them this just quietly falls back.
+  static func preferredFont(weight: FontWeight, size: CGFloat) -> NSFont {
+    let candidates: [String]
+    switch weight {
+    case .bold: candidates = ["Pretendard-Bold", "Inter-Bold", "Inter_18pt-Bold"]
+    case .regular: candidates = ["Pretendard-Regular", "Inter-Regular", "Inter_18pt-Regular"]
+    }
+    for name in candidates {
+      if let font = NSFont(name: name, size: size) { return font }
+    }
+    let systemWeight: NSFont.Weight = weight == .bold ? .bold : .regular
+    return NSFont.systemFont(ofSize: size, weight: systemWeight)
+  }
+
+  enum FontWeight { case bold, regular }
+
+  /// Twice the size the title was measured at in the baked art -- the logo
+  /// can afford to read bigger than the source design.
+  static let titleFontSize: CGFloat = 34 * 2
+  static let titleFont = preferredFont(weight: .bold, size: titleFontSize)
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0xA8) / 255, alpha: 1)
   /// Center of the "AirPop & AirPuff" title, at x600,y1039 (top-left
-  /// origin) -- the midpoint of its measured bounding box.
+  /// origin) -- the midpoint of its measured bounding box in the baked art,
+  /// kept as the center even though the title itself is now drawn larger.
   static let titleCenter = CGPoint(x: 600, y: canvasHeight - 1039)
 
   /// "by L & L", the date, and the divider between them all share one
-  /// row/style: IBM Plex Mono Regular, 27px, 0.24em letter-spacing (per the
-  /// README's date spec), sitting on the same baseline band as "by L & L"
-  /// in the baked art (y 1106...1131, center 1118.5, matching the README's
-  /// date baseline band of y 1099...1135, center 1117).
+  /// row/font size, sitting on the same baseline band as "by L & L" in the
+  /// baked art (y 1106...1131, center 1118.5, matching the README's date
+  /// baseline band of y 1099...1135, center 1117). The README's date spec
+  /// called for IBM Plex Mono Regular, 27px, 0.24em letter-spacing; now
+  /// using the same Pretendard/Inter/SF Pro family as the title instead.
   static let fontSize: CGFloat = 27
-  static let kerning: CGFloat = fontSize * 0.24
+  static let rowFont = preferredFont(weight: .regular, size: fontSize)
+  /// The date and divider keep the spec's 0.24em; "by L & L" reads too
+  /// loose at that tracking, so it's tightened.
+  static let dateKerning: CGFloat = fontSize * 0.24
+  static let byLineKerning: CGFloat = fontSize * 0.1
   static let rowColor = NSColor(
     calibratedRed: CGFloat(0x3F) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0x86) / 255, alpha: 1)
@@ -172,23 +200,20 @@ enum ResultPhotoComposer {
       )
     )
 
-    let rowFont = NSFont.monospacedSystemFont(ofSize: CaptionLayout.fontSize, weight: .regular)
     let byLine = NSAttributedString(
       string: "by L & L",
       attributes: [
-        .font: rowFont,
+        .font: CaptionLayout.rowFont,
         .foregroundColor: CaptionLayout.rowColor,
-        .kern: CaptionLayout.kerning,
+        .kern: CaptionLayout.byLineKerning,
       ]
     )
     let dateText = NSAttributedString(
       string: captionDateFormatter.string(from: Date()),
       attributes: [
-        // The spec calls for IBM Plex Mono Regular; substituting the system
-        // monospaced font until that font file is bundled into the project.
-        .font: rowFont,
+        .font: CaptionLayout.rowFont,
         .foregroundColor: CaptionLayout.rowColor,
-        .kern: CaptionLayout.kerning,
+        .kern: CaptionLayout.dateKerning,
       ]
     )
 
