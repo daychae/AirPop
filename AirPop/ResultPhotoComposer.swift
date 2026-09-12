@@ -67,12 +67,10 @@ private enum CaptionLayout {
   /// can afford to read bigger than the source design.
   static let titleFontSize: CGFloat = 34 * 2
   static let titleFont = sfProExpanded(weight: .bold, size: titleFontSize)
-  /// Lavender ("Pop Lilac"), AirPop's own color in the shared bubble design
-  /// system -- one of the actual pastel colors already in the frame art,
-  /// picked because the previous navy read too strong/dark against it.
+  /// Sampled from the baked title text in PhotoFrameCoolBase.png.
   static let titleColor = NSColor(
-    calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
-    blue: CGFloat(0xFA) / 255, alpha: 1)
+    calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
+    blue: CGFloat(0xA8) / 255, alpha: 1)
   /// Center of the "AirPop & AirPuff" title, at x600,y1039 (top-left
   /// origin) -- the midpoint of its measured bounding box in the baked art,
   /// kept as the center even though the title itself is now drawn larger.
@@ -91,11 +89,10 @@ private enum CaptionLayout {
   /// loose at that tracking, so it's tightened.
   static let dateKerning: CGFloat = fontSize * 0.24
   static let byLineKerning: CGFloat = fontSize * 0.1
-  /// Sky blue, the AirPuff half of the same bubble palette -- also a
-  /// lighter pastel already in the art, distinct from the title's lavender.
+  /// Sampled from the baked "by L & L" text in PhotoFrameCoolBase.png.
   static let rowColor = NSColor(
-    calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
-    blue: CGFloat(0xFA) / 255, alpha: 1)
+    calibratedRed: CGFloat(0x3F) / 255, green: CGFloat(0x4A) / 255,
+    blue: CGFloat(0x86) / 255, alpha: 1)
   static let rowCenterY = canvasHeight - 1117
   /// Center of the date text specifically, at x713 (top-left origin) in
   /// the README's spec.
