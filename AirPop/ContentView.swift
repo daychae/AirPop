@@ -941,9 +941,10 @@ private struct DecorativeBubble: View {
 }
 
 /// One soft, frosted droplet spawned under the pointer while it hovers the
-/// start screen -- a miniature of `DecorativeBubble`'s own gradient recipe
-/// (and the app icon's), not the pointed sparkle star: a trail of sharp
-/// points read as spiky, where the app's own glass-bubble language is soft.
+/// start screen -- modeled on the actual app icon's bubbles (glow bloom,
+/// wide soft highlight, faint rim, tiny white twinkle) rather than a plain
+/// translucent dot, so the trail reads as the same glass bubbles instead of
+/// generic air bubbles.
 private struct TrailSparkle: Identifiable {
   let id = UUID()
   let position: CGPoint
@@ -960,22 +961,46 @@ private struct TrailSparkleView: View {
   @State private var offset: CGSize = .zero
 
   var body: some View {
-    Circle()
-      .fill(
-        RadialGradient(
-          colors: [.white.opacity(0.95), sparkle.color.opacity(0.7), sparkle.color.opacity(0)],
-          center: UnitPoint(x: 0.38, y: 0.32),
-          startRadius: 0,
-          endRadius: sparkle.size * 0.65
+    ZStack {
+      // Soft outer bloom -- the app icon's bubbles glow past their own
+      // edge rather than stopping at a hard boundary.
+      Circle()
+        .fill(sparkle.color.opacity(0.35))
+        .frame(width: sparkle.size * 2, height: sparkle.size * 2)
+        .blur(radius: sparkle.size * 0.4)
+
+      // The glassy sphere: a wide, soft highlight easing into the tint
+      // rather than fading to nothing, plus the faint rim the icon's
+      // bubbles show at their edge.
+      Circle()
+        .fill(
+          RadialGradient(
+            colors: [
+              .white.opacity(0.95),
+              sparkle.color.opacity(0.85),
+              sparkle.color.opacity(0.55),
+            ],
+            center: UnitPoint(x: 0.32, y: 0.28),
+            startRadius: 0,
+            endRadius: sparkle.size * 0.62
+          )
         )
-      )
-      .frame(width: sparkle.size, height: sparkle.size)
-      .blur(radius: sparkle.size * 0.10)
-      .scaleEffect(scale)
-      .offset(offset)
-      .opacity(opacity)
-      .position(sparkle.position)
-      .onAppear {
+        .overlay(
+          Circle().strokeBorder(.white.opacity(0.5), lineWidth: max(0.6, sparkle.size * 0.05))
+        )
+        .frame(width: sparkle.size, height: sparkle.size)
+
+      // The small 4-point twinkle every bubble on the app icon carries.
+      SparkleShape()
+        .fill(.white)
+        .frame(width: sparkle.size * 0.34, height: sparkle.size * 0.34)
+        .offset(x: -sparkle.size * 0.14, y: -sparkle.size * 0.10)
+    }
+    .scaleEffect(scale)
+    .offset(offset)
+    .opacity(opacity)
+    .position(sparkle.position)
+    .onAppear {
         withAnimation(.easeOut(duration: 0.35)) {
           scale = 1.2
           offset = CGSize(width: sparkle.dx * 0.5, height: sparkle.dy * 0.5)
