@@ -375,23 +375,17 @@ struct ContentView: View {
               device: "마지막 순간, 찰칵", tint: Brand.peach)
           }
 
-          VStack(alignment: .leading, spacing: 7) {
-            readinessRow(
-              "B · 손 인식", isReady: game.hasHands,
-              detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
-            readinessRow(
-              "B · 제스처 인식", isReady: game.isModelReady,
-              detail: tracker.classifierName)
-            readinessRow(
-              "A · 아이폰 연결", isReady: game.isPeerConnected,
-              detail: blowStatus.label)
-            readinessRow(
-              "A · 마이크 보정", isReady: game.isPeerMicReady,
-              detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
+          HStack(spacing: 10) {
+            ReadinessPill(
+              title: "손동작 인식됨",
+              isReady: game.hasHands && game.isModelReady)
+            ReadinessPill(
+              title: "아이폰 연결됨",
+              isReady: game.isPeerConnected)
+            ReadinessPill(
+              title: game.isPeerMicReady ? "마이크 준비 완료" : "마이크 준비 중",
+              isReady: game.isPeerMicReady)
           }
-          .padding(.horizontal, 18)
-          .padding(.vertical, 14)
-          .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
 
           if let hostAddress, blowServer.listenerPort > 0 {
             Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
@@ -427,10 +421,14 @@ struct ContentView: View {
           .offset(x: 22, y: 6)
       }
       .overlay(alignment: .bottomTrailing) {
+        DecorativeBubble(tint: Brand.lavender, size: 38)
+          .offset(x: 18, y: -18)
+      }
+      .overlay(alignment: .bottomLeading) {
         SparkleShape()
-          .fill(.white)
-          .frame(width: 22, height: 22)
-          .offset(x: -18, y: -10)
+          .fill(.white.opacity(0.7))
+          .frame(width: 20, height: 20)
+          .offset(x: 30, y: -64)
       }
 
       // A trail of soft, frosted droplets follows the pointer while it
@@ -505,29 +503,13 @@ struct ContentView: View {
   }
 
   private var stepConnector: some View {
-    Rectangle()
-      .fill(.white.opacity(0.15))
-      .frame(width: 20, height: 1)
-      .padding(.top, 20)
-  }
-
-  private func readinessRow(
-    _ title: String,
-    isReady: Bool,
-    detail: String
-  ) -> some View {
-    HStack(spacing: 10) {
-      Image(systemName: isReady ? "checkmark.circle.fill" : "circle")
-        .foregroundStyle(isReady ? .green : .white.opacity(0.35))
-      Text(title)
-        .font(.subheadline.weight(.semibold))
-        .frame(width: 132, alignment: .leading)
-      Text(detail)
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.6))
-        .lineLimit(1)
-      Spacer(minLength: 0)
+    Path { path in
+      path.move(to: CGPoint(x: 0, y: 0))
+      path.addLine(to: CGPoint(x: 28, y: 0))
     }
+    .stroke(.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+    .frame(width: 28, height: 1)
+    .padding(.top, 20)
   }
 
   private var permissionPanel: some View {
@@ -924,19 +906,63 @@ private struct DecorativeBubble: View {
   let size: CGFloat
 
   var body: some View {
-    Circle()
-      .fill(
-        RadialGradient(
-          colors: [.white.opacity(0.95), tint.opacity(0.85), tint.opacity(0.5)],
-          center: UnitPoint(x: 0.34, y: 0.28),
-          startRadius: 0,
-          endRadius: size * 0.62
+    ZStack {
+      Circle()
+        .fill(tint.opacity(0.35))
+        .frame(width: size * 1.5, height: size * 1.5)
+        .blur(radius: size * 0.3)
+
+      Circle()
+        .fill(
+          RadialGradient(
+            colors: [.white.opacity(0.95), tint.opacity(0.85), tint.opacity(0.5)],
+            center: UnitPoint(x: 0.34, y: 0.28),
+            startRadius: 0,
+            endRadius: size * 0.62
+          )
         )
-      )
-      .frame(width: size, height: size)
-      .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: 1.4))
-      .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
-      .allowsHitTesting(false)
+        .frame(width: size, height: size)
+        .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: 1.4))
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
+
+      SparkleShape()
+        .fill(.white)
+        .frame(width: size * 0.26, height: size * 0.26)
+        .offset(x: -size * 0.14, y: -size * 0.1)
+    }
+    .allowsHitTesting(false)
+  }
+}
+
+/// A small rounded-pill readiness indicator -- a lighter-weight readout than
+/// the previous detailed diagnostic rows, matching the "Puff, Pop, Pose"
+/// mockup's three status chips. Deeper diagnostics (model name, connection
+/// detail) stay available in the hidden `D`-toggled diagnostics overlay.
+private struct ReadinessPill: View {
+  let title: String
+  let isReady: Bool
+  @State private var isPulsing = false
+
+  var body: some View {
+    HStack(spacing: 7) {
+      Circle()
+        .fill(isReady ? Color.green : Color.white.opacity(0.35))
+        .frame(width: 7, height: 7)
+        .opacity(isReady || isPulsing ? 1 : 0.4)
+        .onAppear {
+          guard !isReady else { return }
+          withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            isPulsing = true
+          }
+        }
+      Text(title)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.75))
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 7)
+    .background(.white.opacity(0.06), in: Capsule())
+    .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1))
   }
 }
 
