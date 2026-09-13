@@ -80,6 +80,79 @@ private enum BubbleTextureFactory {
     cache[key] = texture
     return texture
   }
+
+  /// A single cached bitmap carrying everything the cursor-trail bubble
+  /// draws in three separate SwiftUI layers -- soft glow halo, gradient
+  /// glass fill, faint rim, tiny twinkle -- so a pop-effect particle looks
+  /// identical to one without paying for three live nodes (or a real blur
+  /// filter) per particle: the whole thing is one pre-rendered sprite.
+  static func popParticle(color: NSColor, diameter: CGFloat) -> SKTexture {
+    let bucket = max(16, (diameter / 3).rounded() * 3)
+    let key = "pop-\(color)-\(bucket)"
+    if let cached = cache[key] { return cached }
+
+    let canvas = bucket * 1.8
+    let size = CGSize(width: canvas, height: canvas)
+    let image = NSImage(size: size, flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else { return false }
+      let colorSpace = CGColorSpaceCreateDeviceRGB()
+      let center = CGPoint(x: rect.midX, y: rect.midY)
+      let bubbleRadius = bucket * 0.5
+
+      if let glow = CGGradient(
+        colorsSpace: colorSpace,
+        colors: [color.withAlphaComponent(0.38).cgColor, color.withAlphaComponent(0).cgColor]
+          as CFArray,
+        locations: [0, 1]
+      ) {
+        context.drawRadialGradient(
+          glow, startCenter: center, startRadius: 0,
+          endCenter: center, endRadius: bubbleRadius * 1.7,
+          options: []
+        )
+      }
+
+      let bubbleRect = CGRect(
+        x: center.x - bubbleRadius, y: center.y - bubbleRadius,
+        width: bubbleRadius * 2, height: bubbleRadius * 2)
+      let fillStops = [
+        NSColor.white.withAlphaComponent(0.95).cgColor,
+        color.withAlphaComponent(0.85).cgColor,
+        color.withAlphaComponent(0.55).cgColor,
+      ]
+      if let fill = CGGradient(
+        colorsSpace: colorSpace, colors: fillStops as CFArray, locations: [0, 0.55, 1])
+      {
+        context.saveGState()
+        context.addEllipse(in: bubbleRect)
+        context.clip()
+        let highlightCenter = CGPoint(
+          x: center.x - bubbleRadius * 0.28, y: center.y + bubbleRadius * 0.32)
+        context.drawRadialGradient(
+          fill, startCenter: highlightCenter, startRadius: 0,
+          endCenter: center, endRadius: bubbleRadius,
+          options: [.drawsAfterEndLocation]
+        )
+        context.restoreGState()
+      }
+
+      context.setStrokeColor(NSColor.white.withAlphaComponent(0.5).cgColor)
+      context.setLineWidth(max(0.6, bubbleRadius * 0.1))
+      context.strokeEllipse(in: bubbleRect)
+
+      context.saveGState()
+      context.translateBy(x: center.x - bubbleRadius * 0.28, y: center.y + bubbleRadius * 0.22)
+      context.addPath(sparkleStarPath(radius: bubbleRadius * 0.32))
+      context.setFillColor(NSColor.white.cgColor)
+      context.fillPath()
+      context.restoreGState()
+
+      return true
+    }
+    let texture = SKTexture(image: image)
+    cache[key] = texture
+    return texture
+  }
 }
 
 /// A simple 4-point sparkle/twinkle shape, used as the accent mark drawn on
@@ -219,7 +292,7 @@ private final class BubbleNode: SKNode {
   /// A small 4-point sparkle/twinkle, matching the accent mark used sparingly
   /// on bubbles in the Figma bubble system.
   private static func sparkleNode(radius: CGFloat) -> SKShapeNode {
-    let sparkle = SKShapeNode(path: sparkleStarPath(radius: radius * 0.22))
+    let sparkle = SKShapeNode(path: sparkleStarPath(radius: radius * 0.13))
     sparkle.fillColor = .white
     sparkle.strokeColor = .clear
     sparkle.glowWidth = 1.2
@@ -750,75 +823,46 @@ final class GameScene: SKScene {
     }
   }
 
-  /// A soft breath-like glow plus a handful of tiny frosted bubbles --
-  /// the same texture the real gameplay bubbles use -- drifting outward and
-  /// dissolving. Replaces an earlier version that spawned little sparkle
-  /// stars: the designer wanted the pop itself to read as "more bubbles",
-  /// the same language as the cursor trail, not a shower of stars.
+  /// A handful of tiny bubbles, visually identical to the cursor trail's
+  /// (see ContentView's `TrailSparkleView`): each particle is one cached
+  /// `BubbleTextureFactory.popParticle` sprite that already bakes in the
+  /// glow halo, gradient fill, rim, and twinkle, so matching that look adds
+  /// no extra live nodes over the previous version -- one sprite per
+  /// particle instead of a sprite plus three separate glow shapes.
   private func showPopEffect(at position: CGPoint, radius: CGFloat, tint: NSColor) {
-    showBreathGlow(at: position, radius: radius, tint: tint)
-
-    let count = 8
+    let count = 7
     for index in 0..<count {
       let angle =
         CGFloat(index) / CGFloat(count) * 2 * .pi + CGFloat.random(in: -0.2...0.2)
       let distance = radius * CGFloat.random(in: 0.8...1.7)
-      let diameter = CGFloat.random(in: 8...16)
+      let diameter = CGFloat.random(in: 10...18)
 
-      let droplet = SKSpriteNode(
-        texture: BubbleTextureFactory.frostedFill(color: tint, diameter: diameter))
-      droplet.name = "effect"
-      droplet.size = CGSize(width: diameter, height: diameter)
-      droplet.position = position
-      droplet.zPosition = 121
-      droplet.alpha = 0
-      droplet.setScale(0.5)
-      addChild(droplet)
+      let texture = BubbleTextureFactory.popParticle(color: tint, diameter: diameter)
+      let particle = SKSpriteNode(texture: texture)
+      particle.name = "effect"
+      let displaySize = diameter * 1.8
+      particle.size = CGSize(width: displaySize, height: displaySize)
+      particle.position = position
+      particle.zPosition = 121
+      particle.alpha = 0
+      particle.setScale(0.5)
+      addChild(particle)
 
       let dx = cos(angle) * distance
       let dy = sin(angle) * distance
 
-      droplet.run(
+      particle.run(
         .sequence([
           .group([
-            .fadeAlpha(to: 0.95, duration: 0.14),
-            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.16),
-            .scale(to: 1.0, duration: 0.16),
+            .fadeAlpha(to: 0.95, duration: 0.16),
+            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.18),
+            .scale(to: 1.15, duration: 0.18),
           ]),
           .group([
             // Grows slightly instead of shrinking to nothing, so it reads
             // as dissolving into the air rather than being wiped away.
-            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.34),
-            .scale(to: 1.5, duration: 0.34),
-            .fadeOut(withDuration: 0.34),
-          ]),
-          .removeFromParent(),
-        ]))
-    }
-  }
-
-  /// A soft halo that breathes outward and fades under the pop's tiny
-  /// bubbles -- built from a few flat, decreasing-alpha circles rather than
-  /// a real Gaussian blur. `BubbleNode`'s own glow already pays for one
-  /// `SKEffectNode`/`CIFilter` per spawned bubble; adding another per pop
-  /// (doubly so once several pop in the same chain) was measurable overhead
-  /// this "fake blur" avoids entirely.
-  private func showBreathGlow(at position: CGPoint, radius: CGFloat, tint: NSColor) {
-    for layer in 0..<3 {
-      let layerRadius = radius * (0.55 + CGFloat(layer) * 0.25)
-      let ring = SKShapeNode(circleOfRadius: layerRadius)
-      ring.name = "effect"
-      ring.position = position
-      ring.fillColor = tint.withAlphaComponent(0.22 - CGFloat(layer) * 0.06)
-      ring.strokeColor = .clear
-      ring.zPosition = 119
-      ring.setScale(0.6)
-      addChild(ring)
-
-      ring.run(
-        .sequence([
-          .group([
-            .scale(to: 1.8 + CGFloat(layer) * 0.2, duration: 0.42),
+            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.42),
+            .scale(to: 1.6, duration: 0.42),
             .fadeOut(withDuration: 0.42),
           ]),
           .removeFromParent(),
