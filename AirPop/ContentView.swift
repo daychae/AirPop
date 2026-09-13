@@ -26,6 +26,8 @@ struct ContentView: View {
   @State private var photoSaveMessage: String?
   @State private var photoFlashOpacity: Double = 0
   @State private var countdownOverlayOpacity: Double = 0
+  @State private var trailSparkles: [TrailSparkle] = []
+  @State private var lastTrailSpawn = Date.distantPast
 
   var body: some View {
     ZStack {
@@ -330,100 +332,170 @@ struct ContentView: View {
   }
 
   private var startPanel: some View {
-    GlassPanel {
-      VStack(spacing: 18) {
-        Text("AIR POP")
-          .font(.system(size: 54, weight: .bold, design: .default))
-          .foregroundStyle(
-            LinearGradient(
-              colors: [.white, Brand.lavender],
-              startPoint: .top,
-              endPoint: .bottom
+    ZStack {
+      GlassPanel {
+        VStack(spacing: 18) {
+          Text("AIR POP")
+            .font(.system(size: 54, weight: .bold, design: .default))
+            .foregroundStyle(
+              LinearGradient(
+                colors: [.white, Brand.lavender],
+                startPoint: .top,
+                endPoint: .bottom
+              )
             )
+
+          startTagline
+
+          HStack(spacing: 14) {
+            playStep(
+              1, title: "Puff", detail: "아이폰에 대고\n후 불기",
+              device: "AirPuff · iPhone", tint: Brand.skyBlue)
+            stepConnector
+            playStep(
+              2, title: "Pop", detail: "엄지·검지로\n톡 터뜨리기",
+              device: "AirPop · 손동작", tint: Brand.lavender)
+            stepConnector
+            playStep(
+              3, title: "Pose", detail: "5초 카운트다운\n뒤 촬영",
+              device: "마지막 순간, 찰칵", tint: Brand.peach)
+          }
+
+          VStack(alignment: .leading, spacing: 7) {
+            readinessRow(
+              "B · 손 인식", isReady: game.hasHands,
+              detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
+            readinessRow(
+              "B · 제스처 인식", isReady: game.isModelReady,
+              detail: tracker.classifierName)
+            readinessRow(
+              "A · 아이폰 연결", isReady: game.isPeerConnected,
+              detail: blowStatus.label)
+            readinessRow(
+              "A · 마이크 보정", isReady: game.isPeerMicReady,
+              detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
+          }
+          .padding(.horizontal, 18)
+          .padding(.vertical, 14)
+          .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
+
+          if let hostAddress, blowServer.listenerPort > 0 {
+            Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.white.opacity(0.5))
+              .textSelection(.enabled)
+          }
+
+          Label(
+            "테스트 기능 · 종료 순간 카메라와 버블을 결과 사진으로 만듭니다",
+            systemImage: "camera.aperture"
           )
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.62))
 
-        Text("바람으로 만들고, 손으로 터뜨리는 버블 게임")
-          .font(.title3.weight(.semibold))
-
-        HStack(spacing: 22) {
-          roleBadge(
-            "A",
-            title: "아이폰으로 만들기",
-            detail: "마이크에 후 불기",
-            tint: Brand.skyBlue
-          )
-          roleBadge(
-            "B",
-            title: "손으로 터뜨리기",
-            detail: "엄지와 검지 붙이기",
-            tint: Brand.lavender
-          )
+          Button("게임 시작") {
+            game.beginCountdown()
+          }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.large)
+          .tint(Brand.lavender)
+          .disabled(!game.canStart)
+          .keyboardShortcut(.space, modifiers: [])
         }
-
-        VStack(alignment: .leading, spacing: 7) {
-          readinessRow(
-            "B · 손 인식", isReady: game.hasHands,
-            detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
-          readinessRow(
-            "B · 제스처 인식", isReady: game.isModelReady,
-            detail: tracker.classifierName)
-          readinessRow(
-            "A · 아이폰 연결", isReady: game.isPeerConnected,
-            detail: blowStatus.label)
-          readinessRow(
-            "A · 마이크 보정", isReady: game.isPeerMicReady,
-            detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
-
-        if let hostAddress, blowServer.listenerPort > 0 {
-          Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.white.opacity(0.5))
-            .textSelection(.enabled)
-        }
-
-        Label(
-          "테스트 기능 · 종료 순간 카메라와 버블을 결과 사진으로 만듭니다",
-          systemImage: "camera.aperture"
-        )
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.62))
-
-        Button("게임 시작") {
-          game.beginCountdown()
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(Brand.lavender)
-        .disabled(!game.canStart)
-        .keyboardShortcut(.space, modifiers: [])
+        .padding(.horizontal, 20)
       }
-      .padding(.horizontal, 20)
+      .overlay(alignment: .topLeading) {
+        DecorativeBubble(tint: Brand.skyBlue, size: 46)
+          .offset(x: -20, y: -14)
+      }
+      .overlay(alignment: .topTrailing) {
+        DecorativeBubble(tint: Brand.peach, size: 58)
+          .offset(x: 22, y: 6)
+      }
+      .overlay(alignment: .bottomTrailing) {
+        SparkleShape()
+          .fill(.white)
+          .frame(width: 22, height: 22)
+          .offset(x: -18, y: -10)
+      }
+
+      // A trail of sparkles follows the pointer while it hovers the start
+      // screen -- the same 4-point shape and palette as the pop effect, so
+      // the interaction reads as the same material rather than a bolted-on
+      // cursor gimmick. Purely decorative: it never intercepts clicks.
+      ForEach(trailSparkles) { TrailSparkleView(sparkle: $0) }
+        .allowsHitTesting(false)
+    }
+    .onContinuousHover { phase in
+      guard case .active(let location) = phase else { return }
+      let now = Date()
+      guard now.timeIntervalSince(lastTrailSpawn) >= 0.04 else { return }
+      lastTrailSpawn = now
+
+      let colors = [Brand.skyBlue, Brand.lavender, Brand.peach, .white]
+      let sparkle = TrailSparkle(
+        position: location,
+        color: colors.randomElement() ?? .white,
+        size: CGFloat.random(in: 5...11),
+        dx: CGFloat.random(in: -13...13),
+        dy: CGFloat.random(in: -28...(-8)),
+        rotation: Double.random(in: 90...240) * (Bool.random() ? 1 : -1)
+      )
+      trailSparkles.append(sparkle)
+
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        trailSparkles.removeAll { $0.id == sparkle.id }
+      }
     }
   }
 
-  private func roleBadge(
-    _ letter: String,
+  private var startTagline: some View {
+    (
+      Text("Puff").foregroundColor(Brand.skyBlue)
+      + Text(", ").foregroundColor(.white.opacity(0.65))
+      + Text("Pop").foregroundColor(Brand.lavender)
+      + Text(", ").foregroundColor(.white.opacity(0.65))
+      + Text("Pose").foregroundColor(Brand.peach)
+      + Text(".").foregroundColor(.white.opacity(0.65))
+    )
+    .font(.title2.weight(.semibold))
+  }
+
+  private func playStep(
+    _ number: Int,
     title: String,
     detail: String,
+    device: String,
     tint: Color
   ) -> some View {
-    VStack(spacing: 5) {
-      Text(letter)
-        .font(.system(size: 26, weight: .bold, design: .default))
-        .foregroundStyle(tint)
-        .frame(width: 46, height: 46)
-        .background(tint.opacity(0.16), in: Circle())
+    VStack(spacing: 6) {
+      Text("\(number)")
+        .font(.system(size: 18, weight: .bold, design: .default))
+        .foregroundStyle(.black.opacity(0.75))
+        .frame(width: 40, height: 40)
+        .background(
+          LinearGradient(colors: [.white, tint], startPoint: .top, endPoint: .bottom),
+          in: Circle()
+        )
       Text(title)
         .font(.subheadline.bold())
+        .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+      Text(device)
+        .font(.caption2)
+        .foregroundStyle(.white.opacity(0.4))
     }
-    .frame(width: 150)
+    .frame(width: 118)
+  }
+
+  private var stepConnector: some View {
+    Rectangle()
+      .fill(.white.opacity(0.15))
+      .frame(width: 20, height: 1)
+      .padding(.top, 20)
   }
 
   private func readinessRow(
@@ -811,5 +883,89 @@ private struct GlassPanel<Content: View>: View {
           .stroke(.white.opacity(0.16), lineWidth: 1)
       }
       .shadow(color: .black.opacity(0.35), radius: 28, y: 12)
+  }
+}
+
+/// A 4-point sparkle/twinkle outline, matching the shape used for the bubble
+/// accent and pop effect in GameScene (`sparkleStarPath`) so the start
+/// screen's decoration and cursor trail read as the same visual language.
+private struct SparkleShape: Shape {
+  func path(in rect: CGRect) -> Path {
+    let r = min(rect.width, rect.height) / 2
+    let c = CGPoint(x: rect.midX, y: rect.midY)
+    var path = Path()
+    path.move(to: CGPoint(x: c.x, y: c.y - r))
+    path.addQuadCurve(to: CGPoint(x: c.x + r * 0.30, y: c.y), control: c)
+    path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), control: c)
+    path.addQuadCurve(to: CGPoint(x: c.x - r * 0.30, y: c.y), control: c)
+    path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), control: c)
+    path.closeSubpath()
+    return path
+  }
+}
+
+/// A small frosted-glass bubble used purely as background decoration around
+/// the start screen -- not interactive, so it never claims a hit area.
+private struct DecorativeBubble: View {
+  let tint: Color
+  let size: CGFloat
+
+  var body: some View {
+    Circle()
+      .fill(
+        RadialGradient(
+          colors: [.white.opacity(0.95), tint.opacity(0.85), tint.opacity(0.5)],
+          center: UnitPoint(x: 0.34, y: 0.28),
+          startRadius: 0,
+          endRadius: size * 0.62
+        )
+      )
+      .frame(width: size, height: size)
+      .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: 1.4))
+      .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
+      .allowsHitTesting(false)
+  }
+}
+
+/// One sparkle spawned under the pointer while it hovers the start screen.
+private struct TrailSparkle: Identifiable {
+  let id = UUID()
+  let position: CGPoint
+  let color: Color
+  let size: CGFloat
+  let dx: CGFloat
+  let dy: CGFloat
+  let rotation: Double
+}
+
+private struct TrailSparkleView: View {
+  let sparkle: TrailSparkle
+  @State private var scale: CGFloat = 0
+  @State private var opacity: Double = 1
+  @State private var offset: CGSize = .zero
+  @State private var rotationDegrees: Double = 0
+
+  var body: some View {
+    SparkleShape()
+      .fill(sparkle.color)
+      .frame(width: sparkle.size, height: sparkle.size)
+      .scaleEffect(scale)
+      .rotationEffect(.degrees(rotationDegrees))
+      .offset(offset)
+      .opacity(opacity)
+      .position(sparkle.position)
+      .onAppear {
+        withAnimation(.easeOut(duration: 0.16)) {
+          scale = 1.15
+          offset = CGSize(width: sparkle.dx * 0.5, height: sparkle.dy * 0.5)
+          rotationDegrees = sparkle.rotation * 0.5
+        }
+        withAnimation(.easeOut(duration: 0.4).delay(0.16)) {
+          scale = 0.25
+          opacity = 0
+          offset = CGSize(width: sparkle.dx, height: sparkle.dy)
+          rotationDegrees = sparkle.rotation
+        }
+      }
   }
 }
