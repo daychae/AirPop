@@ -233,22 +233,15 @@ enum ResultPhotoComposer {
 
   /// The five pastel colors used across the AirPuff/AirPop bubble design
   /// system, matching GameScene's BubblePalette and ContentView's Brand.
+  /// Backed by the designer's handoff color set (`Assets.xcassets/Colors`)
+  /// instead of hand-picked hex -- see ContentView's `Brand` enum for the
+  /// full mapping.
   private enum BubblePalette {
-    static let skyBlue = NSColor(
-      calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
-      blue: CGFloat(0xFA) / 255, alpha: 1)
-    static let lavender = NSColor(
-      calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
-      blue: CGFloat(0xFA) / 255, alpha: 1)
-    static let mint = NSColor(
-      calibratedRed: CGFloat(0x99) / 255, green: CGFloat(0xEA) / 255,
-      blue: CGFloat(0xC7) / 255, alpha: 1)
-    static let pink = NSColor(
-      calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xB8) / 255,
-      blue: CGFloat(0xD9) / 255, alpha: 1)
-    static let peach = NSColor(
-      calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xD1) / 255,
-      blue: CGFloat(0x99) / 255, alpha: 1)
+    static let skyBlue = NSColor(named: "Colors/Sky")!
+    static let lavender = NSColor(named: "Colors/Lilac")!
+    static let mint = NSColor(named: "Colors/Aqua")!
+    static let pink = NSColor(named: "Colors/Blossom")!
+    static let peach = NSColor(named: "Colors/Apricot")!
   }
 
   private struct SeamBubble {

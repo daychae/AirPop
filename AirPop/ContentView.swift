@@ -4,16 +4,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The five pastel colors used across the AirPuff/AirPop bubble design
-/// system (see the Figma "Bubble System — Components" section), scoped here
-/// to the HUD/panel chrome rather than the gameplay bubbles themselves.
-/// AirPop's own signature is lavender ("Pop Lilac"); sky blue stands in for
-/// the AirPuff side of the pairing wherever this screen references it.
+/// system, scoped here to the HUD/panel chrome rather than the gameplay
+/// bubbles themselves. Backed by the designer's handoff color set
+/// (`Assets.xcassets/Colors`, namespaced -- hence "Colors/Sky" rather than
+/// "Sky") instead of the hand-picked hex values these five used to be:
+/// skyBlue -> Sky, lavender -> Lilac (this app's own signature, already
+/// nicknamed "Pop Lilac" before the real asset existed), mint -> Aqua
+/// (closest cool tone in the set to the old green-mint), pink -> Blossom,
+/// peach -> Apricot (both nearest-hex matches to the previous values).
 private enum Brand {
-  static let skyBlue = Color(red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
-  static let lavender = Color(red: Double(0xBF) / 255, green: Double(0xA6) / 255, blue: Double(0xFA) / 255)
-  static let mint = Color(red: Double(0x99) / 255, green: Double(0xEA) / 255, blue: Double(0xC7) / 255)
-  static let pink = Color(red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
-  static let peach = Color(red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
+  static let skyBlue = Color("Colors/Sky")
+  static let lavender = Color("Colors/Lilac")
+  static let mint = Color("Colors/Aqua")
+  static let pink = Color("Colors/Blossom")
+  static let peach = Color("Colors/Apricot")
 }
 
 /// SF Pro's Expanded width variant -- the same technique (and the same

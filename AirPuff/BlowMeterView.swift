@@ -2,20 +2,19 @@ import SwiftUI
 import UIKit
 
 /// The five pastel colors used across the AirPuff/AirPop bubble design
-/// system (see the Figma "Bubble System — Components" section). Fixed hex
-/// values, matching the ones used for the gameplay bubbles in AirPop, so the
-/// two apps read as one visual language.
+/// system, matching the ones used for the gameplay bubbles in AirPop so the
+/// two apps read as one visual language. Backed by the designer's handoff
+/// color set (`Assets.xcassets/Colors`, namespaced -- hence "Colors/Sky"
+/// rather than "Sky") instead of hand-picked hex: skyBlue -> Sky,
+/// lavender -> Lilac, mint -> Aqua, pink -> Blossom, peach -> Apricot
+/// (nearest-hex matches to the previous values; see the mirrored `Brand`
+/// enum in AirPop's ContentView.swift for the same mapping).
 private enum BubbleColor {
-  static let skyBlue = Color(
-    red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
-  static let lavender = Color(
-    red: Double(0xBF) / 255, green: Double(0xA6) / 255, blue: Double(0xFA) / 255)
-  static let mint = Color(
-    red: Double(0x99) / 255, green: Double(0xEA) / 255, blue: Double(0xC7) / 255)
-  static let pink = Color(
-    red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
-  static let peach = Color(
-    red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
+  static let skyBlue = Color("Colors/Sky")
+  static let lavender = Color("Colors/Lilac")
+  static let mint = Color("Colors/Aqua")
+  static let pink = Color("Colors/Blossom")
+  static let peach = Color("Colors/Apricot")
 }
 
 /// A frosted-glass pastel bubble: radial-gradient fill, soft white rim, and

@@ -3,9 +3,13 @@ import CoreImage
 import SpriteKit
 
 /// The five pastel colors used across the AirPuff/AirPop bubble design
-/// system (see the Figma "Bubble System — Components" section). Fixed hex
-/// values, not random hues, so every bubble reads as part of one brand
-/// language rather than a rainbow.
+/// system, not random hues, so every bubble reads as part of one brand
+/// language rather than a rainbow. Backed by the designer's handoff color
+/// set (`Assets.xcassets/Colors`, namespaced -- hence "Colors/Sky" rather
+/// than "Sky") instead of hand-picked hex: skyBlue -> Sky, lavender ->
+/// Lilac, mint -> Aqua, pink -> Blossom, peach -> Apricot (nearest-hex
+/// matches to the previous values; see the mirrored `Brand` enum in
+/// ContentView.swift for the same mapping).
 private enum BubblePalette: CaseIterable {
   case skyBlue
   case lavender
@@ -15,26 +19,11 @@ private enum BubblePalette: CaseIterable {
 
   var color: NSColor {
     switch self {
-    case .skyBlue:
-      return NSColor(
-        calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
-        blue: CGFloat(0xFA) / 255, alpha: 1)
-    case .lavender:
-      return NSColor(
-        calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
-        blue: CGFloat(0xFA) / 255, alpha: 1)
-    case .mint:
-      return NSColor(
-        calibratedRed: CGFloat(0x99) / 255, green: CGFloat(0xEA) / 255,
-        blue: CGFloat(0xC7) / 255, alpha: 1)
-    case .pink:
-      return NSColor(
-        calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xB8) / 255,
-        blue: CGFloat(0xD9) / 255, alpha: 1)
-    case .peach:
-      return NSColor(
-        calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xD1) / 255,
-        blue: CGFloat(0x99) / 255, alpha: 1)
+    case .skyBlue: return NSColor(named: "Colors/Sky")!
+    case .lavender: return NSColor(named: "Colors/Lilac")!
+    case .mint: return NSColor(named: "Colors/Aqua")!
+    case .pink: return NSColor(named: "Colors/Blossom")!
+    case .peach: return NSColor(named: "Colors/Apricot")!
     }
   }
 }
