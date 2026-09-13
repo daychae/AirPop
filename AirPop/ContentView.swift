@@ -353,7 +353,7 @@ struct ContentView: View {
             .font(sfProExpanded(weight: .semibold, size: 58))
             .foregroundStyle(
               LinearGradient(
-                colors: [.white, Brand.lavender],
+                colors: [.white, Brand.lavender, Brand.pink],
                 startPoint: .top,
                 endPoint: .bottom
               )
@@ -378,13 +378,16 @@ struct ContentView: View {
           HStack(spacing: 10) {
             ReadinessPill(
               title: "손동작 인식됨",
-              isReady: game.hasHands && game.isModelReady)
+              isReady: game.hasHands && game.isModelReady,
+              tint: Brand.mint)
             ReadinessPill(
               title: "아이폰 연결됨",
-              isReady: game.isPeerConnected)
+              isReady: game.isPeerConnected,
+              tint: Brand.skyBlue)
             ReadinessPill(
               title: game.isPeerMicReady ? "마이크 준비 완료" : "마이크 준비 중",
-              isReady: game.isPeerMicReady)
+              isReady: game.isPeerMicReady,
+              tint: Brand.pink)
           }
 
           if let hostAddress, blowServer.listenerPort > 0 {
@@ -528,9 +531,11 @@ struct ContentView: View {
           .font(.system(size: 76, weight: .bold, design: .default))
           .foregroundStyle(Brand.lavender)
 
-        HStack(spacing: 24) {
+        // Bombs are co-op-only and disabled in the two-player mode this
+        // game actually ships with, so a "폭탄" stat here always reads 0 --
+        // dropped rather than shown as permanent dead weight.
+        HStack(spacing: 32) {
           resultStat("버블", value: game.normalPopped, color: Brand.lavender)
-          resultStat("폭탄", value: game.bombsTriggered, color: .red)
           resultStat("놓침", value: game.missed, color: .gray)
           resultStat("최고 콤보", value: game.bestCombo, color: Brand.pink)
         }
@@ -895,6 +900,11 @@ private struct SparkleShape: Shape {
 private struct ReadinessPill: View {
   let title: String
   let isReady: Bool
+  /// Identifies which of the three conditions this pill is (hand/gesture,
+  /// iPhone, mic) via its border and wash, distinct from the dot's own
+  /// green/gray, which stays the one signal for "ready or not" -- color
+  /// variety without muddying that at-a-glance status read.
+  let tint: Color
   @State private var isPulsing = false
 
   var body: some View {
@@ -915,8 +925,8 @@ private struct ReadinessPill: View {
     }
     .padding(.horizontal, 14)
     .padding(.vertical, 7)
-    .background(.white.opacity(0.06), in: Capsule())
-    .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1))
+    .background(tint.opacity(0.14), in: Capsule())
+    .overlay(Capsule().strokeBorder(tint.opacity(0.45), lineWidth: 1))
   }
 }
 
