@@ -518,8 +518,12 @@ final class GameScene: SKScene {
     let lowerBound = radius + 24
     let upperBound = max(lowerBound + 1, size.width - radius - 24)
     let range = lowerBound...upperBound
-    var candidate = CGFloat.random(in: range)
 
+    if let clustered = clusterSpawnX(radius: radius, range: range) {
+      return clustered
+    }
+
+    var candidate = CGFloat.random(in: range)
     for _ in 0..<6 {
       let overlaps = bubbles.contains {
         $0.node.position.y < 150
@@ -530,6 +534,32 @@ final class GameScene: SKScene {
       candidate = CGFloat.random(in: range)
     }
     return candidate
+  }
+
+  /// Left alone, the spacing check above keeps every freshly spawned bubble
+  /// clear of its neighbors, so two bubbles only ever end up overlapping by
+  /// accident of mid-air drift -- rare enough that the chain-pop in
+  /// `chainIndices` almost never triggers. A fraction of spawns instead
+  /// deliberately land right on top of the bubble that spawned just before,
+  /// so overlapping clusters (and the domino pops they enable) show up as a
+  /// regular part of play rather than a hidden mechanic.
+  private func clusterSpawnX(radius: CGFloat, range: ClosedRange<CGFloat>) -> CGFloat? {
+    guard Double.random(in: 0...1) < 0.32 else { return nil }
+    guard
+      let anchor = bubbles.last(where: { $0.node.position.y < 150 && !$0.node.isBomb })
+    else { return nil }
+
+    // Comfortably inside the sum of the two radii, so the pair reads as one
+    // overlapping cluster once both are on screen -- not just touching edges.
+    let overlapDistance =
+      (anchor.node.bubbleRadius + radius) * CGFloat.random(in: 0.5...0.8)
+    let direction: CGFloat = Bool.random() ? 1 : -1
+
+    let candidate = anchor.node.position.x + direction * overlapDistance
+    if range.contains(candidate) { return candidate }
+
+    let mirrored = anchor.node.position.x - direction * overlapDistance
+    return range.contains(mirrored) ? mirrored : nil
   }
 
   private func moveBubbles(deltaTime: TimeInterval) {
