@@ -25,8 +25,7 @@ struct ContentView: View {
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
   @State private var photoFlashOpacity: Double = 0
-  @State private var finalCountdownPulseOpacity: Double = 0
-  @State private var finalCountdownNumberScale: CGFloat = 1
+  @State private var countdownOverlayOpacity: Double = 0
 
   var body: some View {
     ZStack {
@@ -64,18 +63,14 @@ struct ContentView: View {
         diagnosticsOverlay
       }
 
-      // Photo Booth-style final countdown: a big, semi-transparent number
-      // over the still-live game (deliberately not opaque and not paired
-      // with a full white flash each second -- either would hide the
-      // bubbles/hands a player may still be popping in the last 5
-      // seconds), plus a soft whole-screen pulse on each tick. The single
-      // strong flash below is reserved for the actual capture at 0.
+      // Photo Booth-style final countdown: designer-provided edge bubbles
+      // fade in over the still-live game, with a ring+number badge in the
+      // center that pops in fresh each second (per
+      // iOS_macOS_app_frames_updated_5/README.txt). Deliberately not a full
+      // white flash each second -- that would hide the bubbles/hands a
+      // player may still be popping. The single strong flash below is
+      // reserved for the actual capture at 0.
       finalCountdownOverlay
-
-      Color.white
-        .opacity(finalCountdownPulseOpacity)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
 
       // Camera-flash stand-in: there's no physical flash on a Mac, so the
       // "photo taken" moment is a plain white layer that snaps to fully
@@ -164,18 +159,13 @@ struct ContentView: View {
       blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
     }
     .onChange(of: game.timeRemaining) { _, remaining in
-      // A per-second "tick" for the final countdown: a quick pop on the
-      // big number and a soft (not full-white) pulse across the screen,
-      // deliberately weaker than the capture flash so it doesn't wash out
-      // bubbles/hands a player may still be popping.
-      guard (1...5).contains(remaining) else { return }
-      finalCountdownNumberScale = 1.18
-      withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-        finalCountdownNumberScale = 1
-      }
-      finalCountdownPulseOpacity = 0.22
+      // The edge overlay fades in once, when the countdown starts; the
+      // per-second badge swap (Countdown5 -> Countdown1) is driven directly
+      // by `game.timeRemaining` inside finalCountdownOverlay's own
+      // `.animation(value:)`, not from here.
+      guard remaining == 5 else { return }
       withAnimation(.easeOut(duration: 0.4)) {
-        finalCountdownPulseOpacity = 0
+        countdownOverlayOpacity = 1
       }
     }
     .onChange(of: game.photoCaptureTrigger) { _, _ in
@@ -184,6 +174,9 @@ struct ContentView: View {
       photoFlashOpacity = 1
       withAnimation(.easeOut(duration: 0.3)) {
         photoFlashOpacity = 0
+      }
+      withAnimation(.easeIn(duration: 0.25)) {
+        countdownOverlayOpacity = 0
       }
       // Placeholder for a real shutter sound: no camera_shutter.wav is
       // bundled yet, so this uses a short built-in system sound instead.
@@ -258,12 +251,33 @@ struct ContentView: View {
   @ViewBuilder
   private var finalCountdownOverlay: some View {
     if game.phase == .playing, (1...5).contains(game.timeRemaining) {
-      Text("\(game.timeRemaining)")
-        .font(.system(size: 220, weight: .bold, design: .default))
-        .foregroundStyle(.white.opacity(0.8))
-        .shadow(color: .black.opacity(0.4), radius: 26)
-        .scaleEffect(finalCountdownNumberScale)
-        .allowsHitTesting(false)
+      GeometryReader { proxy in
+        let shortSide = min(proxy.size.width, proxy.size.height)
+
+        // Decorative bubbles along the screen edges; the center stays fully
+        // transparent so it never competes with gameplay. Scaled to fill
+        // rather than matched to the capture aspect ratio -- it is edge
+        // art, so the crop from scaledToFill isn't noticeable.
+        Image("CountdownOverlayCool")
+          .resizable()
+          .scaledToFill()
+          .frame(width: proxy.size.width, height: proxy.size.height)
+          .clipped()
+          .opacity(countdownOverlayOpacity)
+
+        // Ring + number badge, swapped fresh each second. `.id` forces
+        // SwiftUI to treat each count as a new view so the pop-in/pop-out
+        // transition replays every tick instead of cross-fading digits.
+        Image("Countdown\(game.timeRemaining)")
+          .resizable()
+          .frame(width: shortSide * 0.4, height: shortSide * 0.4)
+          .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+          .transition(.scale(scale: 1.12).combined(with: .opacity))
+          .id(game.timeRemaining)
+          .animation(.easeOut(duration: 0.28), value: game.timeRemaining)
+      }
+      .ignoresSafeArea()
+      .allowsHitTesting(false)
     }
   }
 
