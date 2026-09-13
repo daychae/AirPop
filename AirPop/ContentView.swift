@@ -355,13 +355,7 @@ struct ContentView: View {
         VStack(spacing: 18) {
           Text("AirPop")
             .font(sfProExpanded(weight: .semibold, size: 58))
-            .foregroundStyle(
-              LinearGradient(
-                colors: [.white, Brand.lavender, Brand.pink],
-                startPoint: .top,
-                endPoint: .bottom
-              )
-            )
+            .foregroundStyle(Brand.lavender)
 
           startTagline
 
