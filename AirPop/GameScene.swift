@@ -582,33 +582,88 @@ final class GameScene: SKScene {
     }
 
     guard let target = candidates.min(by: { $0.1 < $1.1 }) else { return }
-    let bubble = bubbles.remove(at: target.0)
-    let effectPosition = bubble.node.position
 
-    bubble.node.removeAllActions()
-    if bubble.node.isBomb {
-      bubble.node.revealBomb()
-      showBombEffect(at: effectPosition, radius: bubble.node.bubbleRadius)
-      AudioManager.shared.play(GameSound.bomb)
-      NSHapticFeedbackManager.defaultPerformer.perform(
-        .generic,
-        performanceTime: .now
-      )
-      onBombTriggered?()
-    } else {
-      showPopEffect(at: effectPosition, radius: bubble.node.bubbleRadius)
-      AudioManager.shared.play(GameSound.pops.randomElement() ?? GameSound.pops[0])
-      onNormalPopped?()
+    // Bubbles that spawned close enough to touch or overlap the one just
+    // pinched pop too, and the chain keeps running through whatever else
+    // touches *those* -- a domino run across the whole overlapping cluster,
+    // not just the immediate neighbors of the pinch point.
+    let order = chainIndices(startingAt: target.0)
+    let entities = order.map { bubbles[$0] }
+    for index in order.sorted(by: >) {
+      bubbles.remove(at: index)
     }
 
-    bubble.node.run(
-      .sequence([
-        .group([
-          .scale(to: 1.28, duration: 0.09),
-          .fadeOut(withDuration: 0.09),
-        ]),
-        .removeFromParent(),
-      ]))
+    for (step, bubble) in entities.enumerated() {
+      popEntity(bubble, delay: Double(step) * 0.05)
+    }
+  }
+
+  private func chainIndices(startingAt start: Int) -> [Int] {
+    var order = [start]
+    var visited: Set<Int> = [start]
+    var frontier = [start]
+
+    while !frontier.isEmpty {
+      var nextFrontier: [Int] = []
+      for i in frontier {
+        let a = bubbles[i]
+        for (j, b) in bubbles.enumerated() where !visited.contains(j) {
+          let touchDistance = (a.node.bubbleRadius + b.node.bubbleRadius) * 1.05
+          let distance = hypot(
+            a.node.position.x - b.node.position.x,
+            a.node.position.y - b.node.position.y
+          )
+          if distance <= touchDistance {
+            visited.insert(j)
+            order.append(j)
+            nextFrontier.append(j)
+          }
+        }
+      }
+      frontier = nextFrontier
+    }
+    return order
+  }
+
+  private func popEntity(_ bubble: BubbleEntity, delay: TimeInterval) {
+    let effectPosition = bubble.node.position
+    let radius = bubble.node.bubbleRadius
+    let isBomb = bubble.node.isBomb
+
+    bubble.node.removeAllActions()
+
+    let pop = SKAction.run { [weak self] in
+      guard let self else { return }
+      if isBomb {
+        bubble.node.revealBomb()
+        self.showBombEffect(at: effectPosition, radius: radius)
+        AudioManager.shared.play(GameSound.bomb)
+        NSHapticFeedbackManager.defaultPerformer.perform(
+          .generic,
+          performanceTime: .now
+        )
+        self.onBombTriggered?()
+      } else {
+        self.showPopEffect(at: effectPosition, radius: radius)
+        AudioManager.shared.play(GameSound.pops.randomElement() ?? GameSound.pops[0])
+        self.onNormalPopped?()
+      }
+
+      bubble.node.run(
+        .sequence([
+          .group([
+            .scale(to: 1.28, duration: 0.09),
+            .fadeOut(withDuration: 0.09),
+          ]),
+          .removeFromParent(),
+        ]))
+    }
+
+    if delay > 0 {
+      run(.sequence([.wait(forDuration: delay), pop]))
+    } else {
+      run(pop)
+    }
   }
 
   private func showPopEffect(at position: CGPoint, radius: CGFloat) {
