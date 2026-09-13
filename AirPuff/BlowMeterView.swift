@@ -2,20 +2,19 @@ import SwiftUI
 import UIKit
 
 /// The five pastel colors used across the AirPuff/AirPop bubble design
-/// system (see the Figma "Bubble System — Components" section). Fixed hex
-/// values, matching the ones used for the gameplay bubbles in AirPop, so the
-/// two apps read as one visual language.
+/// system, matching the ones used for the gameplay bubbles in AirPop so the
+/// two apps read as one visual language. Backed by the designer's handoff
+/// color set (`Assets.xcassets/Colors`, namespaced -- hence "Colors/Sky"
+/// rather than "Sky") instead of hand-picked hex: skyBlue -> Sky,
+/// lavender -> Lilac, mint -> Aqua, pink -> Blossom, peach -> Apricot
+/// (nearest-hex matches to the previous values; see the mirrored `Brand`
+/// enum in AirPop's ContentView.swift for the same mapping).
 private enum BubbleColor {
-  static let skyBlue = Color(
-    red: Double(0x8C) / 255, green: Double(0xC7) / 255, blue: Double(0xFA) / 255)
-  static let lavender = Color(
-    red: Double(0xBF) / 255, green: Double(0xA6) / 255, blue: Double(0xFA) / 255)
-  static let mint = Color(
-    red: Double(0x99) / 255, green: Double(0xEA) / 255, blue: Double(0xC7) / 255)
-  static let pink = Color(
-    red: Double(0xFF) / 255, green: Double(0xB8) / 255, blue: Double(0xD9) / 255)
-  static let peach = Color(
-    red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
+  static let skyBlue = Color("Colors/Sky")
+  static let lavender = Color("Colors/Lilac")
+  static let mint = Color("Colors/Aqua")
+  static let pink = Color("Colors/Blossom")
+  static let peach = Color("Colors/Apricot")
 }
 
 /// A frosted-glass pastel bubble: radial-gradient fill, soft white rim, and
@@ -126,7 +125,7 @@ struct BlowMeterView: View {
         .foregroundStyle(.secondary)
 
       Text("Take a breath.")
-        .font(.system(size: 30, weight: .semibold, design: .rounded))
+        .font(.system(size: 30, weight: .semibold, design: .default))
 
       Text("Blow gently toward your iPhone.")
         .font(.subheadline)
@@ -172,10 +171,10 @@ struct BlowMeterView: View {
   private var roleCard: some View {
     HStack(spacing: 14) {
       Text("A")
-        .font(.system(size: 30, weight: .black, design: .rounded))
-        .foregroundStyle(.orange)
+        .font(.system(size: 30, weight: .black, design: .default))
+        .foregroundStyle(BubbleColor.skyBlue)
         .frame(width: 54, height: 54)
-        .background(.orange.opacity(0.15), in: Circle())
+        .background(BubbleColor.skyBlue.opacity(0.15), in: Circle())
 
       VStack(alignment: .leading, spacing: 3) {
         Text("불어서 버블 만들기")
@@ -220,9 +219,9 @@ struct BlowMeterView: View {
   private var roundStateTint: Color {
     switch connection.remotePhase {
     case .playing: return .green
-    case .countdown: return .cyan
+    case .countdown: return BubbleColor.lavender
     case .pausedHandsLost, .pausedPeerLost: return .orange
-    case .result: return .purple
+    case .result: return BubbleColor.peach
     default: return .gray
     }
   }
@@ -299,7 +298,7 @@ struct BlowMeterView: View {
           .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(connection.isStreaming ? .red : .cyan)
+        .tint(connection.isStreaming ? .red : BubbleColor.skyBlue)
         .disabled(!connection.isLinkUsable)
       }
 
@@ -410,7 +409,7 @@ struct BlowMeterView: View {
 
       if detector.isCalibrating {
         ProgressView(value: detector.calibrationProgress)
-          .tint(.cyan)
+          .tint(BubbleColor.skyBlue)
       }
 
       if detector.permissionState == .denied {
@@ -517,7 +516,7 @@ struct BlowMeterView: View {
       }
 
       Slider(value: $detector.thresholdMargin, in: 8...24, step: 1)
-        .tint(.cyan)
+        .tint(BubbleColor.skyBlue)
 
       HStack {
         Text("민감")
@@ -551,7 +550,7 @@ struct BlowMeterView: View {
         .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
-      .tint(detector.isMonitoring ? .red : .cyan)
+      .tint(detector.isMonitoring ? .red : BubbleColor.skyBlue)
 
       Button("다시 보정") {
         detector.recalibrate()
@@ -612,12 +611,12 @@ struct BlowMeterView: View {
 
   private var meterColor: Color {
     if detector.isBlowing {
-      return .cyan
+      return BubbleColor.skyBlue
     }
     if detector.currentDecibels >= detector.thresholdDecibels {
-      return .orange
+      return BubbleColor.peach
     }
-    return .blue
+    return BubbleColor.lavender
   }
 
   private var meterStateText: String {

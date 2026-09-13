@@ -15,6 +15,11 @@ final class GameSession: ObservableObject {
   @Published private(set) var handCount = 0
   @Published private(set) var isNewHighScore = false
   @Published private(set) var resultPhoto: NSImage?
+  /// Increments once each time a result photo is captured. The view
+  /// observes this (not `resultPhoto` itself, which can also become nil on
+  /// reset) to fire a one-shot flash/shutter effect at the exact capture
+  /// moment.
+  @Published private(set) var photoCaptureTrigger = 0
 
   /// Conditions owned by the camera and the link. The session does not reach
   /// for either of them directly; the view injects what it observes.
@@ -115,6 +120,16 @@ final class GameSession: ObservableObject {
     }
   }
 
+  /// Hand tracking flickers frame to frame -- a single missed frame during
+  /// the 3-2-1 countdown was enough to send the player back to the ready
+  /// screen, which felt like the hand tracking itself kept breaking.
+  /// `beginCountdown` only re-checks the conditions that don't jitter once
+  /// it's running; a genuine hand loss once play actually starts is still
+  /// caught by `handleHandPoses`'s existing pause logic below.
+  private var canStartIgnoringHands: Bool {
+    isModelReady && isPeerConnected && isPeerMicReady
+  }
+
   func beginCountdown() {
     guard phase == .ready, canStart else { return }
     countdownTask?.cancel()
@@ -123,7 +138,7 @@ final class GameSession: ObservableObject {
       guard let self else { return }
 
       for value in [3, 2, 1] {
-        guard !Task.isCancelled, self.canStart else {
+        guard !Task.isCancelled, self.canStartIgnoringHands else {
           self.phase = .ready
           return
         }
@@ -132,7 +147,7 @@ final class GameSession: ObservableObject {
         try? await Task.sleep(for: .seconds(1))
       }
 
-      guard !Task.isCancelled, self.canStart else {
+      guard !Task.isCancelled, self.canStartIgnoringHands else {
         self.phase = .ready
         return
       }
@@ -179,7 +194,15 @@ final class GameSession: ObservableObject {
       self?.missed += 1
     }
     scene.onTimeChanged = { [weak self] remaining in
-      self?.timeRemaining = remaining
+      guard let self else { return }
+      self.timeRemaining = remaining
+
+      // Same tick used for the pre-round 3-2-1, so the last five seconds
+      // read as a countdown to the photo (captured at 0, in finishRound)
+      // as well as to the round ending.
+      if (1...5).contains(remaining) {
+        AudioManager.shared.play(GameSound.countdownTick)
+      }
     }
     scene.onRoundEnded = { [weak self] in
       self?.finishRound()
@@ -209,7 +232,12 @@ final class GameSession: ObservableObject {
 
   private func finishRound() {
     guard phase == .playing || phase.isPaused else { return }
+    // Captured right at the end of the 5-second countdown, not mid-round:
+    // the countdown (blinking timer, ticking) leads up to this exact
+    // moment, so the flash the view fires off `photoCaptureTrigger` lands
+    // on the same beat the player was just counted down to.
     resultPhoto = resultPhotoProvider?(score, bestCombo)
+    photoCaptureTrigger += 1
     phase = .result
     AudioManager.shared.play(GameSound.roundOver)
     isNewHighScore = score > highScore

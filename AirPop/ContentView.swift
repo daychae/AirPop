@@ -3,6 +3,37 @@ import SpriteKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The five pastel colors used across the AirPuff/AirPop bubble design
+/// system, scoped here to the HUD/panel chrome rather than the gameplay
+/// bubbles themselves. Backed by the designer's handoff color set
+/// (`Assets.xcassets/Colors`, namespaced -- hence "Colors/Sky" rather than
+/// "Sky") instead of the hand-picked hex values these five used to be:
+/// skyBlue -> Sky, lavender -> Lilac (this app's own signature, already
+/// nicknamed "Pop Lilac" before the real asset existed), mint -> Aqua
+/// (closest cool tone in the set to the old green-mint), pink -> Blossom,
+/// peach -> Apricot (both nearest-hex matches to the previous values).
+private enum Brand {
+  static let skyBlue = Color("Colors/Sky")
+  static let lavender = Color("Colors/Lilac")
+  static let mint = Color("Colors/Aqua")
+  static let pink = Color("Colors/Blossom")
+  static let peach = Color("Colors/Apricot")
+}
+
+/// SF Pro's Expanded width variant -- the same technique (and the same
+/// discrete instance, at width trait 0.2) as `ResultPhotoComposer`'s
+/// `CaptionLayout.sfProExpanded`, so the on-screen "AirPop" wordmark matches
+/// the one baked into the result photo's frame art instead of falling back
+/// to a plain system weight. `NSFontDescriptor.SymbolicTraits.expanded` does
+/// not work on this variable-width font; the numeric trait does.
+private func sfProExpanded(weight: NSFont.Weight, size: CGFloat) -> Font {
+  let base = NSFont.systemFont(ofSize: size, weight: weight)
+  let expanded = base.fontDescriptor.addingAttributes([
+    .traits: [NSFontDescriptor.TraitKey.width: 0.2]
+  ])
+  return Font(NSFont(descriptor: expanded, size: size) ?? base)
+}
+
 struct ContentView: View {
   @StateObject private var tracker = CameraHandTracker()
   @StateObject private var cameraCoordinates = CameraCoordinateMapper()
@@ -11,6 +42,10 @@ struct ContentView: View {
   @State private var showsDiagnostics = false
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
+  @State private var photoFlashOpacity: Double = 0
+  @State private var countdownOverlayOpacity: Double = 0
+  @State private var trailSparkles: [TrailSparkle] = []
+  @State private var lastTrailSpawn = Date.distantPast
 
   var body: some View {
     ZStack {
@@ -47,6 +82,24 @@ struct ContentView: View {
       if showsDiagnostics {
         diagnosticsOverlay
       }
+
+      // Photo Booth-style final countdown: designer-provided edge bubbles
+      // fade in over the still-live game, with a ring+number badge in the
+      // center that pops in fresh each second (per
+      // iOS_macOS_app_frames_updated_5/README.txt). Deliberately not a full
+      // white flash each second -- that would hide the bubbles/hands a
+      // player may still be popping. The single strong flash below is
+      // reserved for the actual capture at 0.
+      finalCountdownOverlay
+
+      // Camera-flash stand-in: there's no physical flash on a Mac, so the
+      // "photo taken" moment is a plain white layer that snaps to fully
+      // opaque, then fades out (see the photoCaptureTrigger onChange
+      // below) -- the screen-based equivalent of a shutter flash.
+      Color.white
+        .opacity(photoFlashOpacity)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
     .background(.black)
     .background {
@@ -79,7 +132,7 @@ struct ContentView: View {
       game.setModelReady(tracker.isMLReady)
       AudioManager.shared.preload()
       let scene = game.scene
-      game.resultPhotoProvider = { [weak tracker, weak scene] score, bestCombo in
+      game.resultPhotoProvider = { [weak tracker, weak scene] _, _ in
         guard
           let cameraImage = tracker?.latestCameraImage(),
           let scene
@@ -89,9 +142,7 @@ struct ContentView: View {
         return ResultPhotoComposer.make(
           cameraImage: cameraImage,
           overlayImage: scene.snapshotImage(),
-          canvasSize: scene.size,
-          score: score,
-          bestCombo: bestCombo
+          canvasSize: scene.size
         )
       }
       blowServer.start(
@@ -127,6 +178,32 @@ struct ContentView: View {
       // The Mac owns round state, so the phone is told rather than asked.
       blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
     }
+    .onChange(of: game.timeRemaining) { _, remaining in
+      // The edge overlay fades in once, when the countdown starts; the
+      // per-second badge swap (Countdown5 -> Countdown1) is driven directly
+      // by `game.timeRemaining` inside finalCountdownOverlay's own
+      // `.animation(value:)`, not from here.
+      guard remaining == 5 else { return }
+      withAnimation(.easeOut(duration: 0.4)) {
+        countdownOverlayOpacity = 1
+      }
+    }
+    .onChange(of: game.photoCaptureTrigger) { _, _ in
+      // Snap to fully opaque with no animation, then animate the fade --
+      // an actual flash, not a slow cross-fade in either direction.
+      photoFlashOpacity = 1
+      withAnimation(.easeOut(duration: 0.3)) {
+        photoFlashOpacity = 0
+      }
+      withAnimation(.easeIn(duration: 0.25)) {
+        countdownOverlayOpacity = 0
+      }
+      // Placeholder for a real shutter sound: no camera_shutter.wav is
+      // bundled yet, so this uses a short built-in system sound instead.
+      // Swap in AudioManager.shared.play("camera_shutter") once one is
+      // added to Assets/Sounds.
+      NSSound(named: "Tink")?.play()
+    }
     .onChange(of: showsDiagnostics) { _, isShown in
       // Interfaces come and go while the app runs, most notably when a USB
       // cable is plugged in, so re-read rather than trusting the launch value.
@@ -148,7 +225,7 @@ struct ContentView: View {
   private var hud: some View {
     VStack {
       HStack(spacing: 14) {
-        hudCard(title: "SCORE", value: "\(game.score)", tint: .cyan)
+        hudCard(title: "SCORE", value: "\(game.score)", tint: Brand.lavender)
 
         Spacer()
 
@@ -157,7 +234,7 @@ struct ContentView: View {
             .font(.caption.bold())
             .foregroundStyle(.white.opacity(0.72))
           Text("\(game.timeRemaining)")
-            .font(.system(size: 40, weight: .black, design: .rounded))
+            .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
         }
@@ -167,7 +244,7 @@ struct ContentView: View {
 
         Spacer()
 
-        hudCard(title: "BEST", value: "\(game.highScore)", tint: .purple)
+        hudCard(title: "BEST", value: "\(game.highScore)", tint: Brand.skyBlue)
       }
       .padding(.horizontal, 24)
       .padding(.top, 18)
@@ -181,13 +258,46 @@ struct ContentView: View {
         if game.combo >= 2 {
           Text("\(game.combo) COMBO")
             .font(.headline.bold())
-            .foregroundStyle(.yellow)
+            .foregroundStyle(Brand.pink)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
             .background(.black.opacity(0.52), in: Capsule())
         }
       }
       .padding(24)
+    }
+  }
+
+  @ViewBuilder
+  private var finalCountdownOverlay: some View {
+    if game.phase == .playing, (1...5).contains(game.timeRemaining) {
+      GeometryReader { proxy in
+        let shortSide = min(proxy.size.width, proxy.size.height)
+
+        // Decorative bubbles along the screen edges; the center stays fully
+        // transparent so it never competes with gameplay. Scaled to fill
+        // rather than matched to the capture aspect ratio -- it is edge
+        // art, so the crop from scaledToFill isn't noticeable.
+        Image("CountdownOverlayCool")
+          .resizable()
+          .scaledToFill()
+          .frame(width: proxy.size.width, height: proxy.size.height)
+          .clipped()
+          .opacity(countdownOverlayOpacity)
+
+        // Ring + number badge, swapped fresh each second. `.id` forces
+        // SwiftUI to treat each count as a new view so the pop-in/pop-out
+        // transition replays every tick instead of cross-fading digits.
+        Image("Countdown\(game.timeRemaining)")
+          .resizable()
+          .frame(width: shortSide * 0.4, height: shortSide * 0.4)
+          .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+          .transition(.scale(scale: 1.12).combined(with: .opacity))
+          .id(game.timeRemaining)
+          .animation(.easeOut(duration: 0.28), value: game.timeRemaining)
+      }
+      .ignoresSafeArea()
+      .allowsHitTesting(false)
     }
   }
 
@@ -201,9 +311,9 @@ struct ContentView: View {
         startPanel
       case .countdown(let value):
         Text("\(value)")
-          .font(.system(size: 150, weight: .black, design: .rounded))
+          .font(.system(size: 150, weight: .bold, design: .default))
           .foregroundStyle(.white)
-          .shadow(color: .cyan, radius: 22)
+          .shadow(color: Brand.lavender, radius: 22)
       case .playing:
         EmptyView()
       case .pausedHandLost:
@@ -240,119 +350,149 @@ struct ContentView: View {
   }
 
   private var startPanel: some View {
-    GlassPanel {
-      VStack(spacing: 18) {
-        Text("AIR POP")
-          .font(.system(size: 54, weight: .black, design: .rounded))
-          .foregroundStyle(
-            LinearGradient(
-              colors: [.white, .cyan],
-              startPoint: .top,
-              endPoint: .bottom
-            )
+    ZStack {
+      GlassPanel {
+        VStack(spacing: 18) {
+          Text("AirPop")
+            .font(sfProExpanded(weight: .semibold, size: 58))
+            .foregroundStyle(Brand.lavender)
+
+          startTagline
+
+          HStack(spacing: 14) {
+            playStep(
+              1, title: "Puff", detail: "아이폰에 대고\n후 불기",
+              device: "AirPuff · iPhone", tint: Brand.skyBlue)
+            stepConnector
+            playStep(
+              2, title: "Pop", detail: "엄지·검지로\n톡 터뜨리기",
+              device: "AirPop · 손동작", tint: Brand.lavender)
+            stepConnector
+            playStep(
+              3, title: "Pose", detail: "5초 카운트다운\n뒤 촬영",
+              device: "마지막 순간, 찰칵", tint: Brand.peach)
+          }
+
+          HStack(spacing: 10) {
+            ReadinessPill(
+              title: "손동작 인식됨",
+              isReady: game.hasHands && game.isModelReady,
+              tint: Brand.mint)
+            ReadinessPill(
+              title: "아이폰 연결됨",
+              isReady: game.isPeerConnected,
+              tint: Brand.skyBlue)
+            ReadinessPill(
+              title: game.isPeerMicReady ? "마이크 준비 완료" : "마이크 준비 중",
+              isReady: game.isPeerMicReady,
+              tint: Brand.pink)
+          }
+
+          if let hostAddress, blowServer.listenerPort > 0 {
+            Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.white.opacity(0.5))
+              .textSelection(.enabled)
+          }
+
+          Label(
+            "테스트 기능 · 종료 순간 카메라와 버블을 결과 사진으로 만듭니다",
+            systemImage: "camera.aperture"
           )
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.62))
 
-        Text("바람으로 만들고, 손으로 터뜨리는 버블 게임")
-          .font(.title3.weight(.semibold))
-
-        HStack(spacing: 22) {
-          roleBadge(
-            "A",
-            title: "아이폰으로 만들기",
-            detail: "마이크에 후 불기",
-            tint: .orange
-          )
-          roleBadge(
-            "B",
-            title: "손으로 터뜨리기",
-            detail: "엄지와 검지 붙이기",
-            tint: .cyan
-          )
+          Button("게임 시작") {
+            game.beginCountdown()
+          }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.large)
+          .tint(Brand.lavender)
+          .disabled(!game.canStart)
+          .keyboardShortcut(.space, modifiers: [])
         }
-
-        VStack(alignment: .leading, spacing: 7) {
-          readinessRow(
-            "B · 손 인식", isReady: game.hasHands,
-            detail: game.hasHands ? "\(game.handCount)개" : "카메라에 손을 보여주세요")
-          readinessRow(
-            "B · 제스처 인식", isReady: game.isModelReady,
-            detail: tracker.classifierName)
-          readinessRow(
-            "A · 아이폰 연결", isReady: game.isPeerConnected,
-            detail: blowStatus.label)
-          readinessRow(
-            "A · 마이크 보정", isReady: game.isPeerMicReady,
-            detail: game.isPeerMicReady ? "완료" : "AirPuff에서 보정을 마쳐 주세요")
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 16))
-
-        if let hostAddress, blowServer.listenerPort > 0 {
-          Text("\(hostAddress.address) : \(String(blowServer.listenerPort))")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.white.opacity(0.5))
-            .textSelection(.enabled)
-        }
-
-        Label(
-          "테스트 기능 · 종료 순간 카메라와 버블을 결과 사진으로 만듭니다",
-          systemImage: "camera.aperture"
-        )
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.62))
-
-        Button("게임 시작") {
-          game.beginCountdown()
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(.cyan)
-        .disabled(!game.canStart)
-        .keyboardShortcut(.space, modifiers: [])
+        .padding(.horizontal, 20)
       }
-      .padding(.horizontal, 20)
+
+      // A trail of soft, frosted droplets follows the pointer while it
+      // hovers the start screen -- purely decorative, so it never
+      // intercepts clicks.
+      ForEach(trailSparkles) { TrailSparkleView(sparkle: $0) }
+        .allowsHitTesting(false)
+    }
+    .onContinuousHover { phase in
+      guard case .active(let location) = phase else { return }
+      let now = Date()
+      // Thinned out from every 0.04s -- a dense trail read as clutter.
+      guard now.timeIntervalSince(lastTrailSpawn) >= 0.16 else { return }
+      lastTrailSpawn = now
+
+      let colors = [Brand.skyBlue, Brand.lavender, Brand.peach, .white]
+      let sparkle = TrailSparkle(
+        position: location,
+        color: colors.randomElement() ?? .white,
+        size: CGFloat.random(in: 7...15),
+        dx: CGFloat.random(in: -10...10),
+        dy: CGFloat.random(in: -22...(-6))
+      )
+      trailSparkles.append(sparkle)
+
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+        trailSparkles.removeAll { $0.id == sparkle.id }
+      }
     }
   }
 
-  private func roleBadge(
-    _ letter: String,
+  private var startTagline: some View {
+    (
+      Text("Puff").foregroundColor(Brand.skyBlue)
+      + Text(", ").foregroundColor(.white.opacity(0.65))
+      + Text("Pop").foregroundColor(Brand.lavender)
+      + Text(", ").foregroundColor(.white.opacity(0.65))
+      + Text("Pose").foregroundColor(Brand.peach)
+      + Text(".").foregroundColor(.white.opacity(0.65))
+    )
+    .font(.title2.weight(.semibold))
+  }
+
+  private func playStep(
+    _ number: Int,
     title: String,
     detail: String,
+    device: String,
     tint: Color
   ) -> some View {
-    VStack(spacing: 5) {
-      Text(letter)
-        .font(.system(size: 26, weight: .black, design: .rounded))
-        .foregroundStyle(tint)
-        .frame(width: 46, height: 46)
-        .background(tint.opacity(0.16), in: Circle())
+    VStack(spacing: 6) {
+      Text("\(number)")
+        .font(.system(size: 18, weight: .bold, design: .default))
+        .foregroundStyle(.black.opacity(0.75))
+        .frame(width: 40, height: 40)
+        .background(
+          LinearGradient(colors: [.white, tint], startPoint: .top, endPoint: .bottom),
+          in: Circle()
+        )
       Text(title)
         .font(.subheadline.bold())
+        .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+      Text(device)
+        .font(.caption2)
+        .foregroundStyle(.white.opacity(0.4))
     }
-    .frame(width: 150)
+    .frame(width: 118)
   }
 
-  private func readinessRow(
-    _ title: String,
-    isReady: Bool,
-    detail: String
-  ) -> some View {
-    HStack(spacing: 10) {
-      Image(systemName: isReady ? "checkmark.circle.fill" : "circle")
-        .foregroundStyle(isReady ? .green : .white.opacity(0.35))
-      Text(title)
-        .font(.subheadline.weight(.semibold))
-        .frame(width: 132, alignment: .leading)
-      Text(detail)
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.6))
-        .lineLimit(1)
-      Spacer(minLength: 0)
+  private var stepConnector: some View {
+    Path { path in
+      path.move(to: CGPoint(x: 0, y: 0))
+      path.addLine(to: CGPoint(x: 28, y: 0))
     }
+    .stroke(.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+    .frame(width: 28, height: 1)
+    .padding(.top, 20)
   }
 
   private var permissionPanel: some View {
@@ -360,7 +500,7 @@ struct ContentView: View {
       VStack(spacing: 18) {
         Image(systemName: "camera.fill")
           .font(.system(size: 50))
-          .foregroundStyle(.cyan)
+          .foregroundStyle(Brand.lavender)
         Text("카메라 권한이 필요합니다")
           .font(.title.bold())
         Text("AirPop이 손동작을 인식할 수 있도록\n시스템 설정에서 카메라 접근을 허용해주세요.")
@@ -379,33 +519,34 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 16) {
         Text("TIME UP!")
-          .font(.system(size: 44, weight: .black, design: .rounded))
+          .font(.system(size: 44, weight: .bold, design: .default))
         if game.isNewHighScore {
           Text("NEW BEST")
             .font(.headline.bold())
-            .foregroundStyle(.yellow)
+            .foregroundStyle(Brand.peach)
         }
         Text("\(game.score)")
-          .font(.system(size: 76, weight: .black, design: .rounded))
-          .foregroundStyle(.cyan)
+          .font(.system(size: 76, weight: .bold, design: .default))
+          .foregroundStyle(Brand.lavender)
 
-        HStack(spacing: 24) {
-          resultStat("버블", value: game.normalPopped, color: .cyan)
-          resultStat("폭탄", value: game.bombsTriggered, color: .red)
+        // Bombs are co-op-only and disabled in the two-player mode this
+        // game actually ships with, so a "폭탄" stat here always reads 0 --
+        // dropped rather than shown as permanent dead weight.
+        HStack(spacing: 32) {
+          resultStat("버블", value: game.normalPopped, color: Brand.lavender)
           resultStat("놓침", value: game.missed, color: .gray)
-          resultStat("최고 콤보", value: game.bestCombo, color: .yellow)
+          resultStat("최고 콤보", value: game.bestCombo, color: Brand.pink)
         }
 
         if let photo = game.resultPhoto {
+          // PhotoFrameCool is a square 1200x1200 card with its own border
+          // and bubbles baked in, so the preview just needs to size it --
+          // no extra clip shape or stroke on top of the frame art itself.
           Image(nsImage: photo)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: 460, maxHeight: 250)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay {
-              RoundedRectangle(cornerRadius: 18)
-                .stroke(.white.opacity(0.28), lineWidth: 1)
-            }
+            .frame(maxWidth: 320, maxHeight: 320)
+            .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
           HStack(spacing: 12) {
             Button("PNG 저장") {
@@ -418,7 +559,7 @@ struct ContentView: View {
               game.returnToReady()
             }
             .buttonStyle(.borderedProminent)
-            .tint(.cyan)
+            .tint(Brand.lavender)
             .keyboardShortcut(.return, modifiers: [])
           }
         } else {
@@ -431,7 +572,7 @@ struct ContentView: View {
             game.returnToReady()
           }
           .buttonStyle(.borderedProminent)
-          .tint(.cyan)
+          .tint(Brand.lavender)
           .keyboardShortcut(.return, modifiers: [])
         }
 
@@ -632,7 +773,7 @@ struct ContentView: View {
         .font(.caption.bold())
         .foregroundStyle(.white.opacity(0.68))
       Text(value)
-        .font(.system(size: 32, weight: .black, design: .rounded))
+        .font(.system(size: 32, weight: .bold, design: .default))
         .foregroundStyle(tint)
         .contentTransition(.numericText())
     }
@@ -704,10 +845,162 @@ private struct GlassPanel<Content: View>: View {
       .padding(30)
       .foregroundStyle(.white)
       .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+      .background {
+        // A faint sky blue → lavender wash over the system material, so
+        // panels read as part of the bubble family rather than plain
+        // macOS chrome.
+        RoundedRectangle(cornerRadius: 28)
+          .fill(
+            LinearGradient(
+              colors: [Brand.skyBlue.opacity(0.10), Brand.lavender.opacity(0.10)],
+              startPoint: .topLeading,
+              endPoint: .bottomTrailing
+            )
+          )
+      }
       .overlay {
         RoundedRectangle(cornerRadius: 28)
           .stroke(.white.opacity(0.16), lineWidth: 1)
       }
       .shadow(color: .black.opacity(0.35), radius: 28, y: 12)
+  }
+}
+
+/// A 4-point sparkle/twinkle outline, matching the shape used for the bubble
+/// accent in GameScene (`sparkleStarPath`) -- all four outer points sit at
+/// the same radius, with the concave waist pulled toward the diagonals, so
+/// it reads as a symmetric twinkle rather than a squashed lens.
+private struct SparkleShape: Shape {
+  func path(in rect: CGRect) -> Path {
+    let r = min(rect.width, rect.height) / 2
+    let c = CGPoint(x: rect.midX, y: rect.midY)
+    let waist = r * 0.32
+    let top = CGPoint(x: c.x, y: c.y - r)
+    let right = CGPoint(x: c.x + r, y: c.y)
+    let bottom = CGPoint(x: c.x, y: c.y + r)
+    let left = CGPoint(x: c.x - r, y: c.y)
+
+    var path = Path()
+    path.move(to: top)
+    path.addQuadCurve(to: right, control: CGPoint(x: c.x + waist, y: c.y - waist))
+    path.addQuadCurve(to: bottom, control: CGPoint(x: c.x + waist, y: c.y + waist))
+    path.addQuadCurve(to: left, control: CGPoint(x: c.x - waist, y: c.y + waist))
+    path.addQuadCurve(to: top, control: CGPoint(x: c.x - waist, y: c.y - waist))
+    path.closeSubpath()
+    return path
+  }
+}
+
+/// A small rounded-pill readiness indicator -- a lighter-weight readout than
+/// the previous detailed diagnostic rows, matching the "Puff, Pop, Pose"
+/// mockup's three status chips. Deeper diagnostics (model name, connection
+/// detail) stay available in the hidden `D`-toggled diagnostics overlay.
+private struct ReadinessPill: View {
+  let title: String
+  let isReady: Bool
+  /// Identifies which of the three conditions this pill is (hand/gesture,
+  /// iPhone, mic) via its border and wash, distinct from the dot's own
+  /// green/gray, which stays the one signal for "ready or not" -- color
+  /// variety without muddying that at-a-glance status read.
+  let tint: Color
+  @State private var isPulsing = false
+
+  var body: some View {
+    HStack(spacing: 7) {
+      Circle()
+        .fill(isReady ? Color.green : Color.white.opacity(0.35))
+        .frame(width: 7, height: 7)
+        .opacity(isReady || isPulsing ? 1 : 0.4)
+        .onAppear {
+          guard !isReady else { return }
+          withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            isPulsing = true
+          }
+        }
+      Text(title)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.75))
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 7)
+    .background(tint.opacity(0.14), in: Capsule())
+    .overlay(Capsule().strokeBorder(tint.opacity(0.45), lineWidth: 1))
+  }
+}
+
+/// One soft, frosted droplet spawned under the pointer while it hovers the
+/// start screen -- modeled on the actual app icon's bubbles (glow bloom,
+/// wide soft highlight, faint rim, tiny white twinkle) rather than a plain
+/// translucent dot, so the trail reads as the same glass bubbles instead of
+/// generic air bubbles.
+private struct TrailSparkle: Identifiable {
+  let id = UUID()
+  let position: CGPoint
+  let color: Color
+  let size: CGFloat
+  let dx: CGFloat
+  let dy: CGFloat
+}
+
+private struct TrailSparkleView: View {
+  let sparkle: TrailSparkle
+  @State private var scale: CGFloat = 0.4
+  @State private var opacity: Double = 0.9
+  @State private var offset: CGSize = .zero
+
+  var body: some View {
+    ZStack {
+      // Soft outer bloom -- the app icon's bubbles glow past their own
+      // edge rather than stopping at a hard boundary.
+      Circle()
+        .fill(sparkle.color.opacity(0.35))
+        .frame(width: sparkle.size * 2, height: sparkle.size * 2)
+        .blur(radius: sparkle.size * 0.4)
+
+      // The glassy sphere: a wide, soft highlight easing into the tint
+      // rather than fading to nothing, plus the faint rim the icon's
+      // bubbles show at their edge.
+      Circle()
+        .fill(
+          RadialGradient(
+            colors: [
+              .white.opacity(0.95),
+              sparkle.color.opacity(0.85),
+              sparkle.color.opacity(0.55),
+            ],
+            center: UnitPoint(x: 0.32, y: 0.28),
+            startRadius: 0,
+            endRadius: sparkle.size * 0.62
+          )
+        )
+        .overlay(
+          Circle().strokeBorder(.white.opacity(0.5), lineWidth: max(0.6, sparkle.size * 0.05))
+        )
+        .frame(width: sparkle.size, height: sparkle.size)
+
+      // The small 4-point twinkle every bubble on the app icon carries.
+      SparkleShape()
+        .fill(.white)
+        .frame(width: sparkle.size * 0.34, height: sparkle.size * 0.34)
+        .offset(x: -sparkle.size * 0.14, y: -sparkle.size * 0.10)
+    }
+    .scaleEffect(scale)
+    .offset(offset)
+    .opacity(opacity)
+    .position(sparkle.position)
+    .onAppear {
+        withAnimation(.easeOut(duration: 0.35)) {
+          scale = 1.2
+          offset = CGSize(width: sparkle.dx * 0.5, height: sparkle.dy * 0.5)
+        }
+        // Grows and fades rather than shrinking away, echoing the same
+        // "dissolves like a breath" exit used for the pop effect's sparkles
+        // -- slowed down so it drifts rather than darts.
+        withAnimation(.easeOut(duration: 0.85).delay(0.35)) {
+          scale = 1.7
+          opacity = 0
+          offset = CGSize(width: sparkle.dx, height: sparkle.dy)
+        }
+      }
   }
 }
