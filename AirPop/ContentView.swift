@@ -412,24 +412,6 @@ struct ContentView: View {
         }
         .padding(.horizontal, 20)
       }
-      .overlay(alignment: .topLeading) {
-        DecorativeBubble(tint: Brand.skyBlue, size: 46)
-          .offset(x: -20, y: -14)
-      }
-      .overlay(alignment: .topTrailing) {
-        DecorativeBubble(tint: Brand.peach, size: 58)
-          .offset(x: 22, y: 6)
-      }
-      .overlay(alignment: .bottomTrailing) {
-        DecorativeBubble(tint: Brand.lavender, size: 38)
-          .offset(x: 18, y: -18)
-      }
-      .overlay(alignment: .bottomLeading) {
-        SparkleShape()
-          .fill(.white.opacity(0.7))
-          .frame(width: 20, height: 20)
-          .offset(x: 30, y: -64)
-      }
 
       // A trail of soft, frosted droplets follows the pointer while it
       // hovers the start screen -- purely decorative, so it never
@@ -882,55 +864,27 @@ private struct GlassPanel<Content: View>: View {
 }
 
 /// A 4-point sparkle/twinkle outline, matching the shape used for the bubble
-/// accent and pop effect in GameScene (`sparkleStarPath`) so the start
-/// screen's decoration and cursor trail read as the same visual language.
+/// accent in GameScene (`sparkleStarPath`) -- all four outer points sit at
+/// the same radius, with the concave waist pulled toward the diagonals, so
+/// it reads as a symmetric twinkle rather than a squashed lens.
 private struct SparkleShape: Shape {
   func path(in rect: CGRect) -> Path {
     let r = min(rect.width, rect.height) / 2
     let c = CGPoint(x: rect.midX, y: rect.midY)
+    let waist = r * 0.32
+    let top = CGPoint(x: c.x, y: c.y - r)
+    let right = CGPoint(x: c.x + r, y: c.y)
+    let bottom = CGPoint(x: c.x, y: c.y + r)
+    let left = CGPoint(x: c.x - r, y: c.y)
+
     var path = Path()
-    path.move(to: CGPoint(x: c.x, y: c.y - r))
-    path.addQuadCurve(to: CGPoint(x: c.x + r * 0.30, y: c.y), control: c)
-    path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), control: c)
-    path.addQuadCurve(to: CGPoint(x: c.x - r * 0.30, y: c.y), control: c)
-    path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), control: c)
+    path.move(to: top)
+    path.addQuadCurve(to: right, control: CGPoint(x: c.x + waist, y: c.y - waist))
+    path.addQuadCurve(to: bottom, control: CGPoint(x: c.x + waist, y: c.y + waist))
+    path.addQuadCurve(to: left, control: CGPoint(x: c.x - waist, y: c.y + waist))
+    path.addQuadCurve(to: top, control: CGPoint(x: c.x - waist, y: c.y - waist))
     path.closeSubpath()
     return path
-  }
-}
-
-/// A small frosted-glass bubble used purely as background decoration around
-/// the start screen -- not interactive, so it never claims a hit area.
-private struct DecorativeBubble: View {
-  let tint: Color
-  let size: CGFloat
-
-  var body: some View {
-    ZStack {
-      Circle()
-        .fill(tint.opacity(0.35))
-        .frame(width: size * 1.5, height: size * 1.5)
-        .blur(radius: size * 0.3)
-
-      Circle()
-        .fill(
-          RadialGradient(
-            colors: [.white.opacity(0.95), tint.opacity(0.85), tint.opacity(0.5)],
-            center: UnitPoint(x: 0.34, y: 0.28),
-            startRadius: 0,
-            endRadius: size * 0.62
-          )
-        )
-        .frame(width: size, height: size)
-        .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: 1.4))
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
-
-      SparkleShape()
-        .fill(.white)
-        .frame(width: size * 0.26, height: size * 0.26)
-        .offset(x: -size * 0.14, y: -size * 0.1)
-    }
-    .allowsHitTesting(false)
   }
 }
 

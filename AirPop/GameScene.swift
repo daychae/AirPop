@@ -82,17 +82,29 @@ private enum BubbleTextureFactory {
   }
 }
 
-/// A simple 4-point sparkle/twinkle shape, shared by the accent mark drawn on
-/// some bubbles (`BubbleNode.sparkleNode`) and the pop-effect particles in
-/// `GameScene.showPopEffect`, so a bubble popping reads as the same visual
-/// language as the sparkle already sitting on it -- not two unrelated marks.
+/// A simple 4-point sparkle/twinkle shape, used as the accent mark drawn on
+/// some bubbles (`BubbleNode.sparkleNode`).
+///
+/// The previous version moved to (0, r) and (0, -r) as full-length points
+/// but only reached (±0.3r, 0) on the horizontal axis via curves through
+/// those same two endpoints -- top and bottom were real outer points while
+/// left and right were not, so the "star" was actually a squashed
+/// lens/eye shape, not a symmetric sparkle. All four outer points now sit
+/// at the same radius, with the concave waist pulled in toward the
+/// diagonals, so it reads as an actual 4-point twinkle at any rotation.
 private func sparkleStarPath(radius: CGFloat) -> CGPath {
+  let waist = radius * 0.32
+  let top = CGPoint(x: 0, y: radius)
+  let right = CGPoint(x: radius, y: 0)
+  let bottom = CGPoint(x: 0, y: -radius)
+  let left = CGPoint(x: -radius, y: 0)
+
   let path = CGMutablePath()
-  path.move(to: CGPoint(x: 0, y: radius))
-  path.addQuadCurve(to: CGPoint(x: radius * 0.30, y: 0), control: CGPoint(x: 0, y: 0))
-  path.addQuadCurve(to: CGPoint(x: 0, y: -radius), control: CGPoint(x: 0, y: 0))
-  path.addQuadCurve(to: CGPoint(x: -radius * 0.30, y: 0), control: CGPoint(x: 0, y: 0))
-  path.addQuadCurve(to: CGPoint(x: 0, y: radius), control: CGPoint(x: 0, y: 0))
+  path.move(to: top)
+  path.addQuadCurve(to: right, control: CGPoint(x: waist, y: waist))
+  path.addQuadCurve(to: bottom, control: CGPoint(x: waist, y: -waist))
+  path.addQuadCurve(to: left, control: CGPoint(x: -waist, y: -waist))
+  path.addQuadCurve(to: top, control: CGPoint(x: -waist, y: waist))
   path.closeSubpath()
   return path
 }
@@ -325,6 +337,37 @@ final class GameScene: SKScene {
     isBlowing = false
     blowStrength = 0
     spawnCredit = 0
+    warmUpBlurFilterIfNeeded()
+  }
+
+  /// Every spawned bubble carries its own `CIGaussianBlur`-backed glow
+  /// (`BubbleNode`'s outer glow). Core Image only JIT-compiles that filter
+  /// kernel the first time it actually renders, and that cost otherwise
+  /// lands on the first burst of bubbles at round start -- felt as a stutter
+  /// right when the pinch game begins. Rendering one, invisibly, while the
+  /// ready screen is still up pays that cost before it can be felt.
+  private var hasWarmedBlurFilter = false
+
+  private func warmUpBlurFilterIfNeeded() {
+    guard !hasWarmedBlurFilter else { return }
+    hasWarmedBlurFilter = true
+
+    let dot = SKShapeNode(circleOfRadius: 4)
+    dot.fillColor = .white
+    dot.strokeColor = .clear
+
+    let effect = SKEffectNode()
+    effect.shouldRasterize = true
+    let blur = CIFilter(name: "CIGaussianBlur")
+    blur?.setValue(4.0, forKey: kCIInputRadiusKey)
+    effect.filter = blur
+    effect.addChild(dot)
+    effect.alpha = 0.01
+    effect.position = CGPoint(x: -200, y: -200)
+    effect.zPosition = -1000
+    addChild(effect)
+
+    effect.run(.sequence([.wait(forDuration: 0.05), .removeFromParent()]))
   }
 
   func startRound() {
@@ -707,83 +750,80 @@ final class GameScene: SKScene {
     }
   }
 
-  /// Sparkle (matching the accent already on ~35% of bubbles, see
-  /// `BubbleNode.sparkleNode`) plus a soft breath-like glow that dissipates
-  /// rather than a hard shockwave ring -- the two directions the designer
-  /// picked from a set of four pop-effect studies, combined: sparkles carry
-  /// the branding, the glow gives their exit a fade instead of a wipe.
+  /// A soft breath-like glow plus a handful of tiny frosted bubbles --
+  /// the same texture the real gameplay bubbles use -- drifting outward and
+  /// dissolving. Replaces an earlier version that spawned little sparkle
+  /// stars: the designer wanted the pop itself to read as "more bubbles",
+  /// the same language as the cursor trail, not a shower of stars.
   private func showPopEffect(at position: CGPoint, radius: CGFloat, tint: NSColor) {
     showBreathGlow(at: position, radius: radius, tint: tint)
 
-    let count = 12
+    let count = 8
     for index in 0..<count {
       let angle =
-        CGFloat(index) / CGFloat(count) * 2 * .pi + CGFloat.random(in: -0.18...0.18)
-      let distance = radius * CGFloat.random(in: 0.9...1.9)
-      let starRadius = CGFloat.random(in: 3...6)
+        CGFloat(index) / CGFloat(count) * 2 * .pi + CGFloat.random(in: -0.2...0.2)
+      let distance = radius * CGFloat.random(in: 0.8...1.7)
+      let diameter = CGFloat.random(in: 8...16)
 
-      let sparkle = SKShapeNode(path: sparkleStarPath(radius: starRadius))
-      sparkle.name = "effect"
-      sparkle.position = position
-      sparkle.fillColor = Bool.random() ? .white : tint
-      sparkle.strokeColor = .clear
-      sparkle.glowWidth = 1.4
-      sparkle.zRotation = CGFloat.random(in: 0...(2 * .pi))
-      sparkle.setScale(0)
-      sparkle.zPosition = 121
-      addChild(sparkle)
+      let droplet = SKSpriteNode(
+        texture: BubbleTextureFactory.frostedFill(color: tint, diameter: diameter))
+      droplet.name = "effect"
+      droplet.size = CGSize(width: diameter, height: diameter)
+      droplet.position = position
+      droplet.zPosition = 121
+      droplet.alpha = 0
+      droplet.setScale(0.5)
+      addChild(droplet)
 
       let dx = cos(angle) * distance
       let dy = sin(angle) * distance
-      let spin = CGFloat.random(in: -2.4...2.4)
 
-      sparkle.run(
+      droplet.run(
         .sequence([
           .group([
-            .move(by: CGVector(dx: dx * 0.55, dy: dy * 0.55), duration: 0.16),
-            .scale(to: 1.3, duration: 0.16),
-            .rotate(byAngle: spin * 0.5, duration: 0.16),
+            .fadeAlpha(to: 0.95, duration: 0.14),
+            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.16),
+            .scale(to: 1.0, duration: 0.16),
           ]),
           .group([
-            // Grows slightly instead of shrinking to nothing, so it reads as
-            // dissolving into the air rather than being wiped away.
-            .move(by: CGVector(dx: dx * 0.45, dy: dy * 0.45), duration: 0.30),
-            .scale(to: 1.05, duration: 0.30),
-            .rotate(byAngle: spin * 0.5, duration: 0.30),
-            .fadeOut(withDuration: 0.30),
+            // Grows slightly instead of shrinking to nothing, so it reads
+            // as dissolving into the air rather than being wiped away.
+            .move(by: CGVector(dx: dx * 0.5, dy: dy * 0.5), duration: 0.34),
+            .scale(to: 1.5, duration: 0.34),
+            .fadeOut(withDuration: 0.34),
           ]),
           .removeFromParent(),
         ]))
     }
   }
 
-  /// A soft, blurred halo that breathes outward and fades under the sparkles
-  /// -- an airy dissipation rather than a hard-edged shockwave, echoing the
-  /// countdown overlay's own bubble-breath art.
+  /// A soft halo that breathes outward and fades under the pop's tiny
+  /// bubbles -- built from a few flat, decreasing-alpha circles rather than
+  /// a real Gaussian blur. `BubbleNode`'s own glow already pays for one
+  /// `SKEffectNode`/`CIFilter` per spawned bubble; adding another per pop
+  /// (doubly so once several pop in the same chain) was measurable overhead
+  /// this "fake blur" avoids entirely.
   private func showBreathGlow(at position: CGPoint, radius: CGFloat, tint: NSColor) {
-    let glowShape = SKShapeNode(circleOfRadius: radius * 0.9)
-    glowShape.fillColor = tint.withAlphaComponent(0.4)
-    glowShape.strokeColor = .clear
-    let glow = SKEffectNode()
-    glow.name = "effect"
-    glow.shouldRasterize = true
-    let blur = CIFilter(name: "CIGaussianBlur")
-    blur?.setValue(radius * 0.5, forKey: kCIInputRadiusKey)
-    glow.filter = blur
-    glow.addChild(glowShape)
-    glow.position = position
-    glow.zPosition = 119
-    glow.setScale(0.6)
-    addChild(glow)
+    for layer in 0..<3 {
+      let layerRadius = radius * (0.55 + CGFloat(layer) * 0.25)
+      let ring = SKShapeNode(circleOfRadius: layerRadius)
+      ring.name = "effect"
+      ring.position = position
+      ring.fillColor = tint.withAlphaComponent(0.22 - CGFloat(layer) * 0.06)
+      ring.strokeColor = .clear
+      ring.zPosition = 119
+      ring.setScale(0.6)
+      addChild(ring)
 
-    glow.run(
-      .sequence([
-        .group([
-          .scale(to: 1.8, duration: 0.42),
-          .fadeOut(withDuration: 0.42),
-        ]),
-        .removeFromParent(),
-      ]))
+      ring.run(
+        .sequence([
+          .group([
+            .scale(to: 1.8 + CGFloat(layer) * 0.2, duration: 0.42),
+            .fadeOut(withDuration: 0.42),
+          ]),
+          .removeFromParent(),
+        ]))
+    }
   }
 
   private func showBombEffect(at position: CGPoint, radius: CGFloat) {
