@@ -24,28 +24,8 @@ private enum FrameLayout {
   /// How far the photo's edge fades out, in points. A hard geometric clip
   /// on the rounded rect reads as a harsh, slightly jagged border where the
   /// sharp photo meets the frame art's own soft window edge; feathering it
-  /// blends the two instead. Raised from 20 -- a seam was still visible at
-  /// that radius on a real photo.
-  static let windowEdgeFeather: CGFloat = 50
-
-  /// PhotoFrameCoolTop's transparent center is an oval well short of the
-  /// window's actual top/bottom (and, to a lesser extent, left/right)
-  /// edges -- measured directly off its alpha channel, the fog is already
-  /// close to fully opaque about 185-205pt in from the top/bottom edges.
-  /// Over a real photo that would look like the top and bottom got cut off
-  /// under a heavy veil. `topLayerInnerRect` is inset far enough that the
-  /// veil is confined to a border band (where it's meant to look like
-  /// bubbles spilling onto the photo) instead of eating into most of the
-  /// window.
-  static let topLayerInset: CGFloat = 70
-  static var topLayerInnerRect: CGRect { windowRect.insetBy(dx: topLayerInset, dy: topLayerInset) }
-  /// Raised twice now (40 -> 120 -> 250): on a real (often dimly lit)
-  /// photo, the fog fading out over a still-short distance kept reading as
-  /// a visible seam -- a light, almost-white band giving way abruptly to
-  /// the photo's true brightness. Spreading the same fade over a much
-  /// longer distance keeps the border's fog effect but removes the
-  /// hard-looking edge.
-  static let topLayerInnerFeather: CGFloat = 250
+  /// blends the two instead.
+  static let windowEdgeFeather: CGFloat = 24
 }
 
 /// Position/type spec for the caption, measured directly off the baked
@@ -163,10 +143,8 @@ enum ResultPhotoComposer {
       context: context
     )
 
-    // Lightened from 0.16 -- combined with the fog fading out at the
-    // window's edge (see FrameLayout.topLayerInnerFeather), the darker tint
-    // made a dim real-world photo look noticeably heavy right where the two
-    // effects overlapped.
+    // Lightened from 0.16 -- a dim real-world photo read noticeably heavy
+    // at the darker tint.
     context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
     context.fill(FrameLayout.windowRect)
 
@@ -183,18 +161,22 @@ enum ResultPhotoComposer {
     context.restoreGState()
 
     // Bubbles that spill onto the photo's edges, with a transparent center,
-    // drawn after the photo so they sit on top of it near the border. Kept
-    // off the window's interior beyond a border band (see
-    // `FrameLayout.topLayerInset`) so a real photo isn't heavily veiled
-    // toward its own top/bottom.
+    // drawn after the photo so they sit on top of it near the border.
     if let topCGImage {
-      context.saveGState()
-      if let mask = topLayerMask(canvasSize: outputSize) {
-        context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
-      }
       context.draw(topCGImage, in: CGRect(origin: .zero, size: outputSize))
-      context.restoreGState()
     }
+
+    // PhotoFrameCoolTop's own transparent center is an oval that falls well
+    // short of the window's straight top/bottom edges, so its fog is still
+    // heavy for a while in from those edges -- measured off its alpha
+    // channel, essentially fully opaque at the very edge, only clearing by
+    // roughly 85pt in at the top and 180pt in at the bottom. Rather than
+    // fight that with more masking/feathering (which kept reading as a
+    // seam at every radius tried), a few more bubbles straddling those
+    // edges -- half over the photo, half over the frame background --
+    // cover the transition with the same "bubbles spilling onto the
+    // photo" device the corners already use.
+    drawSeamBubbles(context: context)
 
     drawCaption(context: context)
 
@@ -249,46 +231,122 @@ enum ResultPhotoComposer {
     return blurredMask
   }
 
-  /// White (bubbles/fog fully allowed) everywhere except
-  /// `FrameLayout.topLayerInnerRect`, which fades to black (fog suppressed)
-  /// over `FrameLayout.topLayerInnerFeather` points -- confines
-  /// PhotoFrameCoolTop's veil to a border band around the window instead of
-  /// its own oversized oval eating into most of the window.
-  private static func topLayerMask(canvasSize: CGSize) -> CGImage? {
-    guard
-      let maskContext = CGContext(
-        data: nil,
-        width: Int(canvasSize.width),
-        height: Int(canvasSize.height),
-        bitsPerComponent: 8,
-        bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceGray(),
-        bitmapInfo: CGImageAlphaInfo.none.rawValue
-      )
-    else { return nil }
-    maskContext.setFillColor(gray: 1, alpha: 1)
-    maskContext.fill(CGRect(origin: .zero, size: canvasSize))
-    maskContext.setFillColor(gray: 0, alpha: 1)
-    maskContext.addPath(
-      CGPath(
-        roundedRect: FrameLayout.topLayerInnerRect,
-        cornerWidth: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
-        cornerHeight: max(0, FrameLayout.cornerRadius - FrameLayout.topLayerInset),
-        transform: nil
-      )
-    )
-    maskContext.fillPath()
-    guard let rawMask = maskContext.makeImage() else { return nil }
+  /// The five pastel colors used across the AirPuff/AirPop bubble design
+  /// system, matching GameScene's BubblePalette and ContentView's Brand.
+  private enum BubblePalette {
+    static let skyBlue = NSColor(
+      calibratedRed: CGFloat(0x8C) / 255, green: CGFloat(0xC7) / 255,
+      blue: CGFloat(0xFA) / 255, alpha: 1)
+    static let lavender = NSColor(
+      calibratedRed: CGFloat(0xBF) / 255, green: CGFloat(0xA6) / 255,
+      blue: CGFloat(0xFA) / 255, alpha: 1)
+    static let mint = NSColor(
+      calibratedRed: CGFloat(0x99) / 255, green: CGFloat(0xEA) / 255,
+      blue: CGFloat(0xC7) / 255, alpha: 1)
+    static let pink = NSColor(
+      calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xB8) / 255,
+      blue: CGFloat(0xD9) / 255, alpha: 1)
+    static let peach = NSColor(
+      calibratedRed: CGFloat(0xFF) / 255, green: CGFloat(0xD1) / 255,
+      blue: CGFloat(0x99) / 255, alpha: 1)
+  }
 
-    let ciMask = CIImage(cgImage: rawMask)
-    guard let blur = CIFilter(name: "CIGaussianBlur") else { return rawMask }
-    blur.setValue(ciMask.clampedToExtent(), forKey: kCIInputImageKey)
-    blur.setValue(FrameLayout.topLayerInnerFeather, forKey: kCIInputRadiusKey)
+  private struct SeamBubble {
+    let x: CGFloat
+    let radius: CGFloat
+    let color: NSColor
+  }
+
+  /// Fixed, not random: the same photo composited twice should look the
+  /// same. x is a fraction of the window's width from its left edge.
+  private static let topSeamBubbles = [
+    SeamBubble(x: 0.12, radius: 95, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.42, radius: 62, color: BubblePalette.pink),
+    SeamBubble(x: 0.68, radius: 78, color: BubblePalette.lavender),
+    SeamBubble(x: 0.90, radius: 55, color: BubblePalette.mint),
+  ]
+  private static let bottomSeamBubbles = [
+    SeamBubble(x: 0.08, radius: 85, color: BubblePalette.peach),
+    SeamBubble(x: 0.36, radius: 105, color: BubblePalette.lavender),
+    SeamBubble(x: 0.64, radius: 72, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.88, radius: 95, color: BubblePalette.pink),
+  ]
+
+  /// Centering bubbles exactly on the window's outer edge missed the actual
+  /// fog transition, which (per PhotoFrameCoolTop's alpha channel) sits
+  /// further inside -- about 85pt in at the top, 180pt in at the bottom
+  /// (the bottom oval falls shorter). Pulling the centers in by roughly
+  /// half that keeps the transition inside each bubble's radius.
+  private static let topSeamInset: CGFloat = 55
+  private static let bottomSeamInset: CGFloat = 95
+
+  private static func drawSeamBubbles(context: CGContext) {
+    let window = FrameLayout.windowRect
+    for bubble in topSeamBubbles {
+      drawFrostedBubble(
+        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.maxY - topSeamInset),
+        radius: bubble.radius,
+        color: bubble.color,
+        context: context
+      )
+    }
+    for bubble in bottomSeamBubbles {
+      drawFrostedBubble(
+        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.minY + bottomSeamInset),
+        radius: bubble.radius,
+        color: bubble.color,
+        context: context
+      )
+    }
+  }
+
+  /// A simplified version of GameScene's frosted-glass bubble: a radial
+  /// gradient fill (bright highlight fading to the tint), a soft outer
+  /// glow, and a white rim, so these read as the same bubble family as the
+  /// gameplay bubbles and the frame's own corner bubbles.
+  private static func drawFrostedBubble(
+    center: CGPoint,
+    radius: CGFloat,
+    color: NSColor,
+    context: CGContext
+  ) {
+    context.saveGState()
+    context.setShadow(
+      offset: .zero,
+      blur: radius * 0.5,
+      color: color.withAlphaComponent(0.45).cgColor
+    )
+    context.setFillColor(color.withAlphaComponent(0.001).cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.restoreGState()
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let stops = [
+      NSColor.white.withAlphaComponent(0.95).cgColor,
+      color.withAlphaComponent(0.7).cgColor,
+      color.withAlphaComponent(0.35).cgColor,
+    ]
     guard
-      let output = blur.outputImage?.cropped(to: ciMask.extent),
-      let blurredMask = ciContext.createCGImage(output, from: ciMask.extent)
-    else { return rawMask }
-    return blurredMask
+      let gradient = CGGradient(colorsSpace: colorSpace, colors: stops as CFArray, locations: [0, 0.55, 1])
+    else { return }
+
+    context.saveGState()
+    context.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.clip()
+    let highlightCenter = CGPoint(x: center.x - radius * 0.16, y: center.y + radius * 0.18)
+    context.drawRadialGradient(
+      gradient,
+      startCenter: highlightCenter, startRadius: 0,
+      endCenter: center, endRadius: radius * 1.05,
+      options: [.drawsAfterEndLocation]
+    )
+    context.restoreGState()
+
+    context.saveGState()
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.85).cgColor)
+    context.setLineWidth(max(1.6, radius * 0.035))
+    context.strokeEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.restoreGState()
   }
 
   private static func loadNamedImage(_ name: String) -> CGImage? {
@@ -378,8 +436,8 @@ enum ResultPhotoComposer {
   /// from, so a centered crop was cutting off both the top of the player's
   /// head and their chest/shoulders. Weighting the vertical crop toward the
   /// top keeps the head in frame and lets the extra cropping fall on the
-  /// body below instead, which the eased top-layer veil (see
-  /// `FrameLayout.topLayerInset`) already softens rather than cutting hard.
+  /// body below instead, which the seam bubbles at the bottom edge (see
+  /// `drawSeamBubbles`) already help cover rather than cutting hard.
   private static let verticalCropBias: CGFloat = 0.85
 
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
