@@ -16,6 +16,20 @@ private enum Brand {
   static let peach = Color(red: Double(0xFF) / 255, green: Double(0xD1) / 255, blue: Double(0x99) / 255)
 }
 
+/// SF Pro's Expanded width variant -- the same technique (and the same
+/// discrete instance, at width trait 0.2) as `ResultPhotoComposer`'s
+/// `CaptionLayout.sfProExpanded`, so the on-screen "AirPop" wordmark matches
+/// the one baked into the result photo's frame art instead of falling back
+/// to a plain system weight. `NSFontDescriptor.SymbolicTraits.expanded` does
+/// not work on this variable-width font; the numeric trait does.
+private func sfProExpanded(weight: NSFont.Weight, size: CGFloat) -> Font {
+  let base = NSFont.systemFont(ofSize: size, weight: weight)
+  let expanded = base.fontDescriptor.addingAttributes([
+    .traits: [NSFontDescriptor.TraitKey.width: 0.2]
+  ])
+  return Font(NSFont(descriptor: expanded, size: size) ?? base)
+}
+
 struct ContentView: View {
   @StateObject private var tracker = CameraHandTracker()
   @StateObject private var cameraCoordinates = CameraCoordinateMapper()
@@ -335,8 +349,8 @@ struct ContentView: View {
     ZStack {
       GlassPanel {
         VStack(spacing: 18) {
-          Text("AIR POP")
-            .font(.system(size: 54, weight: .bold, design: .default))
+          Text("AirPop")
+            .font(sfProExpanded(weight: .semibold, size: 58))
             .foregroundStyle(
               LinearGradient(
                 colors: [.white, Brand.lavender],
@@ -419,10 +433,9 @@ struct ContentView: View {
           .offset(x: -18, y: -10)
       }
 
-      // A trail of sparkles follows the pointer while it hovers the start
-      // screen -- the same 4-point shape and palette as the pop effect, so
-      // the interaction reads as the same material rather than a bolted-on
-      // cursor gimmick. Purely decorative: it never intercepts clicks.
+      // A trail of soft, frosted droplets follows the pointer while it
+      // hovers the start screen -- purely decorative, so it never
+      // intercepts clicks.
       ForEach(trailSparkles) { TrailSparkleView(sparkle: $0) }
         .allowsHitTesting(false)
     }
@@ -436,10 +449,9 @@ struct ContentView: View {
       let sparkle = TrailSparkle(
         position: location,
         color: colors.randomElement() ?? .white,
-        size: CGFloat.random(in: 5...11),
+        size: CGFloat.random(in: 7...15),
         dx: CGFloat.random(in: -13...13),
-        dy: CGFloat.random(in: -28...(-8)),
-        rotation: Double.random(in: 90...240) * (Bool.random() ? 1 : -1)
+        dy: CGFloat.random(in: -28...(-8))
       )
       trailSparkles.append(sparkle)
 
@@ -927,7 +939,10 @@ private struct DecorativeBubble: View {
   }
 }
 
-/// One sparkle spawned under the pointer while it hovers the start screen.
+/// One soft, frosted droplet spawned under the pointer while it hovers the
+/// start screen -- a miniature of `DecorativeBubble`'s own gradient recipe
+/// (and the app icon's), not the pointed sparkle star: a trail of sharp
+/// points read as spiky, where the app's own glass-bubble language is soft.
 private struct TrailSparkle: Identifiable {
   let id = UUID()
   let position: CGPoint
@@ -935,36 +950,41 @@ private struct TrailSparkle: Identifiable {
   let size: CGFloat
   let dx: CGFloat
   let dy: CGFloat
-  let rotation: Double
 }
 
 private struct TrailSparkleView: View {
   let sparkle: TrailSparkle
-  @State private var scale: CGFloat = 0
-  @State private var opacity: Double = 1
+  @State private var scale: CGFloat = 0.4
+  @State private var opacity: Double = 0.9
   @State private var offset: CGSize = .zero
-  @State private var rotationDegrees: Double = 0
 
   var body: some View {
-    SparkleShape()
-      .fill(sparkle.color)
+    Circle()
+      .fill(
+        RadialGradient(
+          colors: [.white.opacity(0.95), sparkle.color.opacity(0.7), sparkle.color.opacity(0)],
+          center: UnitPoint(x: 0.38, y: 0.32),
+          startRadius: 0,
+          endRadius: sparkle.size * 0.65
+        )
+      )
       .frame(width: sparkle.size, height: sparkle.size)
+      .blur(radius: sparkle.size * 0.10)
       .scaleEffect(scale)
-      .rotationEffect(.degrees(rotationDegrees))
       .offset(offset)
       .opacity(opacity)
       .position(sparkle.position)
       .onAppear {
-        withAnimation(.easeOut(duration: 0.16)) {
-          scale = 1.15
+        withAnimation(.easeOut(duration: 0.18)) {
+          scale = 1.2
           offset = CGSize(width: sparkle.dx * 0.5, height: sparkle.dy * 0.5)
-          rotationDegrees = sparkle.rotation * 0.5
         }
-        withAnimation(.easeOut(duration: 0.4).delay(0.16)) {
-          scale = 0.25
+        // Grows and fades rather than shrinking away, echoing the same
+        // "dissolves like a breath" exit used for the pop effect's sparkles.
+        withAnimation(.easeOut(duration: 0.42).delay(0.18)) {
+          scale = 1.7
           opacity = 0
           offset = CGSize(width: sparkle.dx, height: sparkle.dy)
-          rotationDegrees = sparkle.rotation
         }
       }
   }
