@@ -25,6 +25,7 @@ struct ContentView: View {
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
   @State private var isFinalCountdownPulsing = false
+  @State private var photoFlashOpacity: Double = 0
 
   var body: some View {
     ZStack {
@@ -61,6 +62,15 @@ struct ContentView: View {
       if showsDiagnostics {
         diagnosticsOverlay
       }
+
+      // Camera-flash stand-in: there's no physical flash on a Mac, so the
+      // "photo taken" moment is a plain white layer that snaps to fully
+      // opaque, then fades out (see the photoCaptureTrigger onChange
+      // below) -- the screen-based equivalent of a shutter flash.
+      Color.white
+        .opacity(photoFlashOpacity)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
     .background(.black)
     .background {
@@ -148,6 +158,19 @@ struct ContentView: View {
         isFinalCountdownPulsing = false
       }
     }
+    .onChange(of: game.photoCaptureTrigger) { _, _ in
+      // Snap to fully opaque with no animation, then animate the fade --
+      // an actual flash, not a slow cross-fade in either direction.
+      photoFlashOpacity = 1
+      withAnimation(.easeOut(duration: 0.3)) {
+        photoFlashOpacity = 0
+      }
+      // Placeholder for a real shutter sound: no camera_shutter.wav is
+      // bundled yet, so this uses a short built-in system sound instead.
+      // Swap in AudioManager.shared.play("camera_shutter") once one is
+      // added to Assets/Sounds.
+      NSSound(named: "Tink")?.play()
+    }
     .onChange(of: showsDiagnostics) { _, isShown in
       // Interfaces come and go while the app runs, most notably when a USB
       // cable is plugged in, so re-read rather than trusting the launch value.
@@ -181,9 +204,9 @@ struct ContentView: View {
             .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
-            // The result photo is captured with 5 seconds left, so the
-            // blink (and the matching tick sound in GameSession) doubles as
-            // a heads-up that the photo moment is coming.
+            // The result photo is captured when this countdown reaches 0,
+            // so the blink (and the matching tick sound in GameSession)
+            // leads up to the flash/shutter effect below.
             .opacity(isFinalCountdownPulsing ? 0.35 : 1)
             .animation(
               .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
