@@ -24,8 +24,9 @@ struct ContentView: View {
   @State private var showsDiagnostics = false
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
-  @State private var isFinalCountdownPulsing = false
   @State private var photoFlashOpacity: Double = 0
+  @State private var finalCountdownPulseOpacity: Double = 0
+  @State private var finalCountdownNumberScale: CGFloat = 1
 
   var body: some View {
     ZStack {
@@ -62,6 +63,19 @@ struct ContentView: View {
       if showsDiagnostics {
         diagnosticsOverlay
       }
+
+      // Photo Booth-style final countdown: a big, semi-transparent number
+      // over the still-live game (deliberately not opaque and not paired
+      // with a full white flash each second -- either would hide the
+      // bubbles/hands a player may still be popping in the last 5
+      // seconds), plus a soft whole-screen pulse on each tick. The single
+      // strong flash below is reserved for the actual capture at 0.
+      finalCountdownOverlay
+
+      Color.white
+        .opacity(finalCountdownPulseOpacity)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
 
       // Camera-flash stand-in: there's no physical flash on a Mac, so the
       // "photo taken" moment is a plain white layer that snaps to fully
@@ -150,12 +164,18 @@ struct ContentView: View {
       blowServer.sendGameState(phase.wire, countdownValue: phase.countdownValue)
     }
     .onChange(of: game.timeRemaining) { _, remaining in
-      // Set once, not toggled every second: repeatForever takes it from
-      // there. Only reset when a fresh round's timer resets past it.
-      if remaining == 5 {
-        isFinalCountdownPulsing = true
-      } else if remaining > 5 {
-        isFinalCountdownPulsing = false
+      // A per-second "tick" for the final countdown: a quick pop on the
+      // big number and a soft (not full-white) pulse across the screen,
+      // deliberately weaker than the capture flash so it doesn't wash out
+      // bubbles/hands a player may still be popping.
+      guard (1...5).contains(remaining) else { return }
+      finalCountdownNumberScale = 1.18
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+        finalCountdownNumberScale = 1
+      }
+      finalCountdownPulseOpacity = 0.22
+      withAnimation(.easeOut(duration: 0.4)) {
+        finalCountdownPulseOpacity = 0
       }
     }
     .onChange(of: game.photoCaptureTrigger) { _, _ in
@@ -204,14 +224,6 @@ struct ContentView: View {
             .font(.system(size: 40, weight: .bold, design: .default))
             .foregroundStyle(game.timeRemaining <= 5 ? .red : .white)
             .contentTransition(.numericText())
-            // The result photo is captured when this countdown reaches 0,
-            // so the blink (and the matching tick sound in GameSession)
-            // leads up to the flash/shutter effect below.
-            .opacity(isFinalCountdownPulsing ? 0.35 : 1)
-            .animation(
-              .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
-              value: isFinalCountdownPulsing
-            )
         }
         .frame(width: 130)
         .padding(.vertical, 10)
@@ -240,6 +252,18 @@ struct ContentView: View {
         }
       }
       .padding(24)
+    }
+  }
+
+  @ViewBuilder
+  private var finalCountdownOverlay: some View {
+    if game.phase == .playing, (1...5).contains(game.timeRemaining) {
+      Text("\(game.timeRemaining)")
+        .font(.system(size: 220, weight: .bold, design: .default))
+        .foregroundStyle(.white.opacity(0.8))
+        .shadow(color: .black.opacity(0.4), radius: 26)
+        .scaleEffect(finalCountdownNumberScale)
+        .allowsHitTesting(false)
     }
   }
 
