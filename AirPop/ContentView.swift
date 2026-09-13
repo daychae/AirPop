@@ -442,7 +442,8 @@ struct ContentView: View {
     .onContinuousHover { phase in
       guard case .active(let location) = phase else { return }
       let now = Date()
-      guard now.timeIntervalSince(lastTrailSpawn) >= 0.04 else { return }
+      // Thinned out from every 0.04s -- a dense trail read as clutter.
+      guard now.timeIntervalSince(lastTrailSpawn) >= 0.16 else { return }
       lastTrailSpawn = now
 
       let colors = [Brand.skyBlue, Brand.lavender, Brand.peach, .white]
@@ -450,12 +451,12 @@ struct ContentView: View {
         position: location,
         color: colors.randomElement() ?? .white,
         size: CGFloat.random(in: 7...15),
-        dx: CGFloat.random(in: -13...13),
-        dy: CGFloat.random(in: -28...(-8))
+        dx: CGFloat.random(in: -10...10),
+        dy: CGFloat.random(in: -22...(-6))
       )
       trailSparkles.append(sparkle)
 
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
         trailSparkles.removeAll { $0.id == sparkle.id }
       }
     }
@@ -975,13 +976,14 @@ private struct TrailSparkleView: View {
       .opacity(opacity)
       .position(sparkle.position)
       .onAppear {
-        withAnimation(.easeOut(duration: 0.18)) {
+        withAnimation(.easeOut(duration: 0.35)) {
           scale = 1.2
           offset = CGSize(width: sparkle.dx * 0.5, height: sparkle.dy * 0.5)
         }
         // Grows and fades rather than shrinking away, echoing the same
-        // "dissolves like a breath" exit used for the pop effect's sparkles.
-        withAnimation(.easeOut(duration: 0.42).delay(0.18)) {
+        // "dissolves like a breath" exit used for the pop effect's sparkles
+        // -- slowed down so it drifts rather than darts.
+        withAnimation(.easeOut(duration: 0.85).delay(0.35)) {
           scale = 1.7
           opacity = 0
           offset = CGSize(width: sparkle.dx, height: sparkle.dy)
