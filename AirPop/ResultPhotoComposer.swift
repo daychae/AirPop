@@ -3,25 +3,28 @@ import CoreGraphics
 import CoreImage
 
 /// Layout for the square frame (`PhotoFrameSquare` in Assets.xcassets): a
-/// fixed 1200x1200 canvas, single layer, no caption baked in -- unlike the
-/// earlier wide frame, this art ships as pure background/bubble decoration,
-/// so the whole caption (logo, tagline, date, "by lauren & luke") is drawn
-/// fresh every time instead of covering baked text.
+/// fixed 1200x1200 canvas, single layer, no caption baked in -- this art
+/// ships as pure background/bubble decoration, so the whole caption (logo,
+/// "by L & L | date") is drawn fresh every time, and a ring of seam bubbles
+/// is drawn at the photo window's edges to match a past version of this
+/// screen the design is meant to echo.
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
-  /// The oval photo window, picked to fill the art's bright "clearing"
-  /// without cutting into the bubbles ringing it (checked by eye against
-  /// the actual asset, not measured off a spec). Must fully contain the
-  /// asset's own baked transparent hole (top-left bbox roughly x353-846,
-  /// y281-714) -- falling short there leaves a gap where neither this
-  /// window's clipped content nor the base art (transparent there) paints
-  /// anything, showing as a raw black notch.
-  static let windowRect = CGRect(x: 150, y: 470, width: 900, height: 610)
+  /// The photo window, picked to fill the art's bright "clearing" while
+  /// leaving enough room below for the two-line caption. A rounded rect
+  /// (not the oval used briefly in between) to match the reference this
+  /// was asked to echo, and deliberately close enough to the ring of
+  /// bubbles above/below that `seamBubbles` reads as sitting right on the
+  /// window's edge rather than floating apart from it.
+  static let windowRect = CGRect(x: 150, y: 500, width: 900, height: 600)
+  static let windowCornerRadius: CGFloat = 40
 
-  /// The oval's own edge in the art is already soft (a faint glow ring),
-  /// so this only needs to smooth the hand-off between that and the photo.
-  static let windowEdgeFeather: CGFloat = 10
+  /// The oval window elsewhere in this app only needed a little smoothing
+  /// since its edge in the art itself is already soft; this rect's corners
+  /// are a hard geometric cut with nothing like that to lean on, so it
+  /// needs more blur to keep the hand-off from reading as jagged.
+  static let windowEdgeFeather: CGFloat = 16
 }
 
 /// The whole caption is drawn fresh in white (no baked art to match), with
@@ -44,6 +47,7 @@ private enum CaptionLayout {
   }
 
   static let textColor = NSColor.white
+  static let rowColor = NSColor.white.withAlphaComponent(0.92)
   static let shadowColor = NSColor.black.withAlphaComponent(0.4)
   static let shadowBlur: CGFloat = 7
 
@@ -53,24 +57,20 @@ private enum CaptionLayout {
   /// applying tracking to the whole word.
   static let logoPopKerningRange = NSRange(location: 4, length: 1)
   static let logoPopKerning: CGFloat = -logoFont.pointSize * 0.045
-  static let logoCenter = CGPoint(x: 600, y: 460)
+  static let logoCenter = CGPoint(x: 600, y: 400)
 
-  static let taglineFont = googleSansFlex(wght: 400, size: 30)
-  /// The "+"/"÷" separators between words sit a size down from the words
-  /// themselves, matching the previous frame's baked tagline.
-  static let taglineSymbolFont = googleSansFlex(wght: 400, size: 19)
-  static let taglineCenter = CGPoint(x: 600, y: 400)
+  static let byLineFont = googleSansFlex(wght: 500, size: 22)
+  static let byLineKerning: CGFloat = byLineFont.pointSize * 0.1
+  static let dividerColor = NSColor.white.withAlphaComponent(0.6)
 
-  /// Handjet is a display/monospace face (digital-clock-ish digits), which
-  /// reads better as a "code-like" date stamp than a humanist sans would.
+  /// Handjet is a seven-segment-display-style face -- the faint "ghost"
+  /// segments behind each lit digit are intentional to the font, not a
+  /// rendering glitch, and read well as a photo-booth-style date stamp.
   static let dateFont =
-    NSFont(name: "Handjet-SemiBold", size: 34)
-    ?? NSFont.monospacedSystemFont(ofSize: 34, weight: .semibold)
-  static let dateCenter = CGPoint(x: 600, y: 335)
-
-  static let creditFont = googleSansFlex(wght: 500, size: 19)
-  static let creditColor = NSColor.white.withAlphaComponent(0.9)
-  static let creditCenter = CGPoint(x: 870, y: 45)
+    NSFont(name: "Handjet-SemiBold", size: 26)
+    ?? NSFont.monospacedSystemFont(ofSize: 26, weight: .semibold)
+  static let dateKerning: CGFloat = dateFont.pointSize * 0.12
+  static let rowCenter = CGPoint(x: 600, y: 330)
 }
 
 enum ResultPhotoComposer {
@@ -105,7 +105,14 @@ enum ResultPhotoComposer {
     if let mask = featheredWindowMask(canvasSize: outputSize) {
       context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
     } else {
-      context.addEllipse(in: FrameLayout.windowRect)
+      context.addPath(
+        CGPath(
+          roundedRect: FrameLayout.windowRect,
+          cornerWidth: FrameLayout.windowCornerRadius,
+          cornerHeight: FrameLayout.windowCornerRadius,
+          transform: nil
+        )
+      )
       context.clip()
     }
 
@@ -132,6 +139,7 @@ enum ResultPhotoComposer {
 
     context.restoreGState()
 
+    drawSeamBubbles(context: context)
     drawCaption(context: context)
 
     guard let result = context.makeImage() else { return nil }
@@ -141,8 +149,8 @@ enum ResultPhotoComposer {
   private static let baseCGImage: CGImage? = loadNamedImage("PhotoFrameSquare")
   private static let ciContext = CIContext(options: nil)
 
-  /// A soft-edged mask the size of the whole canvas: opaque over the oval
-  /// photo window, transparent everywhere else, then blurred by
+  /// A soft-edged mask the size of the whole canvas: opaque over the photo
+  /// window, transparent everywhere else, then blurred by
   /// `FrameLayout.windowEdgeFeather` so the boundary fades over a few
   /// points instead of cutting a hard geometric edge. Used with
   /// `CGContext.clip(to:mask:)` so the photo, game overlay, and dim tint
@@ -167,7 +175,14 @@ enum ResultPhotoComposer {
     maskContext.setFillColor(gray: 0, alpha: 0)
     maskContext.fill(CGRect(origin: .zero, size: canvasSize))
     maskContext.setFillColor(gray: 0, alpha: 1)
-    maskContext.addEllipse(in: FrameLayout.windowRect)
+    maskContext.addPath(
+      CGPath(
+        roundedRect: FrameLayout.windowRect,
+        cornerWidth: FrameLayout.windowCornerRadius,
+        cornerHeight: FrameLayout.windowCornerRadius,
+        transform: nil
+      )
+    )
     maskContext.fillPath()
     guard let rawMask = maskContext.makeImage() else { return nil }
 
@@ -182,6 +197,110 @@ enum ResultPhotoComposer {
     return blurredMask
   }
 
+  /// The five pastel colors used across the AirPuff/AirPop bubble design
+  /// system, matching GameScene's BubblePalette and ContentView's Brand.
+  /// Backed by the designer's handoff color set (`Assets.xcassets/Colors`)
+  /// instead of hand-picked hex -- see ContentView's `Brand` enum for the
+  /// full mapping.
+  private enum BubblePalette {
+    static let skyBlue = NSColor(named: "Colors/Sky")!
+    static let lilac = NSColor(named: "Colors/Lilac")!
+    static let mint = NSColor(named: "Colors/Aqua")!
+    static let pink = NSColor(named: "Colors/Blossom")!
+    static let peach = NSColor(named: "Colors/Apricot")!
+  }
+
+  private struct SeamBubble {
+    let x: CGFloat
+    let radius: CGFloat
+    let color: NSColor
+  }
+
+  /// Fixed, not random: the same photo composited twice should look the
+  /// same. x is a fraction of the window's width from its left edge.
+  private static let topSeamBubbles = [
+    SeamBubble(x: 0.12, radius: 60, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.38, radius: 42, color: BubblePalette.pink),
+    SeamBubble(x: 0.62, radius: 48, color: BubblePalette.lilac),
+    SeamBubble(x: 0.88, radius: 40, color: BubblePalette.mint),
+  ]
+  private static let bottomSeamBubbles = [
+    SeamBubble(x: 0.10, radius: 55, color: BubblePalette.peach),
+    SeamBubble(x: 0.36, radius: 65, color: BubblePalette.lilac),
+    SeamBubble(x: 0.64, radius: 48, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.90, radius: 58, color: BubblePalette.pink),
+  ]
+  private static let topSeamInset: CGFloat = 20
+  private static let bottomSeamInset: CGFloat = 30
+
+  private static func drawSeamBubbles(context: CGContext) {
+    let window = FrameLayout.windowRect
+    for bubble in topSeamBubbles {
+      drawFrostedBubble(
+        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.maxY - topSeamInset),
+        radius: bubble.radius,
+        color: bubble.color,
+        context: context
+      )
+    }
+    for bubble in bottomSeamBubbles {
+      drawFrostedBubble(
+        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.minY + bottomSeamInset),
+        radius: bubble.radius,
+        color: bubble.color,
+        context: context
+      )
+    }
+  }
+
+  /// A frosted-glass bubble matching the frame art's own bubbles: a radial
+  /// gradient fill (bright highlight fading to the tint), a soft outer
+  /// glow, and a white rim.
+  private static func drawFrostedBubble(
+    center: CGPoint,
+    radius: CGFloat,
+    color: NSColor,
+    context: CGContext
+  ) {
+    context.saveGState()
+    context.setShadow(
+      offset: .zero,
+      blur: radius * 0.5,
+      color: color.withAlphaComponent(0.45).cgColor
+    )
+    context.setFillColor(color.withAlphaComponent(0.001).cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.restoreGState()
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let stops = [
+      NSColor.white.withAlphaComponent(0.95).cgColor,
+      color.withAlphaComponent(0.7).cgColor,
+      color.withAlphaComponent(0.35).cgColor,
+    ]
+    guard
+      let gradient = CGGradient(colorsSpace: colorSpace, colors: stops as CFArray, locations: [0, 0.55, 1])
+    else { return }
+
+    context.saveGState()
+    context.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.clip()
+    let highlightCenter = CGPoint(x: center.x - radius * 0.16, y: center.y + radius * 0.18)
+    context.drawRadialGradient(
+      gradient,
+      startCenter: highlightCenter, startRadius: 0,
+      endCenter: center, endRadius: radius * 1.05,
+      options: [.drawsAfterEndLocation]
+    )
+    context.restoreGState()
+
+    context.saveGState()
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.85).cgColor)
+    context.setLineWidth(max(1.6, radius * 0.035))
+    context.strokeEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    context.restoreGState()
+  }
+
   private static func loadNamedImage(_ name: String) -> CGImage? {
     guard let image = NSImage(named: name) else { return nil }
     var rect = CGRect(origin: .zero, size: image.size)
@@ -194,9 +313,9 @@ enum ResultPhotoComposer {
     return formatter
   }()
 
-  /// Draws the whole caption -- logo, tagline, live date, and the "by
-  /// lauren & luke" credit -- fresh on top of everything else, since
-  /// PhotoFrameSquare carries none of it baked in.
+  /// Draws the whole caption -- "AirPop" and a "by L & L | date" row below
+  /// it -- fresh on top of everything else, since PhotoFrameSquare carries
+  /// none of it baked in.
   private static func drawCaption(context: CGContext) {
     context.saveGState()
     context.setShadow(
@@ -222,52 +341,33 @@ enum ResultPhotoComposer {
       )
     )
 
-    func taglineRun(_ text: String, symbol: Bool = false) -> NSAttributedString {
+    let row = NSMutableAttributedString(
+      string: "by L & L",
+      attributes: [
+        .font: CaptionLayout.byLineFont, .foregroundColor: CaptionLayout.rowColor,
+        .kern: CaptionLayout.byLineKerning,
+      ]
+    )
+    row.append(
       NSAttributedString(
-        string: text,
+        string: "  |  ",
+        attributes: [.font: CaptionLayout.byLineFont, .foregroundColor: CaptionLayout.dividerColor]
+      )
+    )
+    row.append(
+      NSAttributedString(
+        string: captionDateFormatter.string(from: Date()),
         attributes: [
-          .font: symbol ? CaptionLayout.taglineSymbolFont : CaptionLayout.taglineFont,
-          .foregroundColor: CaptionLayout.textColor,
+          .font: CaptionLayout.dateFont, .foregroundColor: CaptionLayout.rowColor,
+          .kern: CaptionLayout.dateKerning,
         ]
       )
-    }
-    let tagline = NSMutableAttributedString()
-    tagline.append(taglineRun("puff "))
-    tagline.append(taglineRun("+", symbol: true))
-    tagline.append(taglineRun(" \u{00F7} ", symbol: true))
-    tagline.append(taglineRun("pop "))
-    tagline.append(taglineRun("+", symbol: true))
-    tagline.append(taglineRun(" \u{00F7} ", symbol: true))
-    tagline.append(taglineRun("pose"))
-    let taglineSize = tagline.size()
-    tagline.draw(
+    )
+    let rowSize = row.size()
+    row.draw(
       at: CGPoint(
-        x: CaptionLayout.taglineCenter.x - taglineSize.width / 2,
-        y: CaptionLayout.taglineCenter.y - taglineSize.height / 2
-      )
-    )
-
-    let dateText = NSAttributedString(
-      string: captionDateFormatter.string(from: Date()),
-      attributes: [.font: CaptionLayout.dateFont, .foregroundColor: CaptionLayout.textColor]
-    )
-    let dateSize = dateText.size()
-    dateText.draw(
-      at: CGPoint(
-        x: CaptionLayout.dateCenter.x - dateSize.width / 2,
-        y: CaptionLayout.dateCenter.y - dateSize.height / 2
-      )
-    )
-
-    let credit = NSAttributedString(
-      string: "\u{2726} \u{00B7} by lauren & luke \u{00B7} \u{2726}",
-      attributes: [.font: CaptionLayout.creditFont, .foregroundColor: CaptionLayout.creditColor]
-    )
-    let creditSize = credit.size()
-    credit.draw(
-      at: CGPoint(
-        x: CaptionLayout.creditCenter.x - creditSize.width / 2,
-        y: CaptionLayout.creditCenter.y - creditSize.height / 2
+        x: CaptionLayout.rowCenter.x - rowSize.width / 2,
+        y: CaptionLayout.rowCenter.y - rowSize.height / 2
       )
     )
 
@@ -280,7 +380,8 @@ enum ResultPhotoComposer {
   /// centered crop was cutting off both the top of the player's head and
   /// their chest/shoulders. Weighting the vertical crop toward the top
   /// keeps the head in frame and lets the extra cropping fall on the body
-  /// below instead.
+  /// below instead, which the seam bubbles at the window's edges already
+  /// help cover rather than cutting hard.
   private static let verticalCropBias: CGFloat = 0.85
 
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
