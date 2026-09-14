@@ -3,74 +3,48 @@ import CoreGraphics
 import CoreImage
 
 /// Layout for the square frame (`PhotoFrameSquare` in Assets.xcassets): a
-/// fixed 1200x1200 canvas, single layer, no caption baked in -- this art
-/// ships as pure background/bubble decoration, so the whole caption (logo,
-/// "by L & L | date") is drawn fresh every time, and a ring of seam bubbles
-/// is drawn at the photo window's edges to match a past version of this
-/// screen the design is meant to echo.
+/// fixed 1200x1200 canvas, single layer. The logo, tagline, and
+/// "by lauren & luke" credit are baked into the art (composited from the
+/// designer's separate background + caption-sprite files), so only the
+/// live date is drawn fresh, replacing a baked "YYYY.MM.DD" placeholder --
+/// same technique as the once-used wide frame.
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
   /// The photo window, picked to fill the art's bright "clearing" while
-  /// leaving enough room below for the two-line caption. A rounded rect
-  /// (not the oval used briefly in between) to match the reference this
-  /// was asked to echo, and deliberately close enough to the ring of
-  /// bubbles above/below that `seamBubbles` reads as sitting right on the
-  /// window's edge rather than floating apart from it.
-  static let windowRect = CGRect(x: 150, y: 500, width: 900, height: 600)
+  /// clearing the baked tagline just above it (bottom of "puff + ÷ pop +
+  /// ÷ pose" sits at top-left y~195) and leaving generous room below for
+  /// the credit/date block (top-left y~1044) -- checked by eye against
+  /// the actual asset, not measured off a spec.
+  static let windowRect = CGRect(x: 150, y: 500, width: 900, height: 495)
   static let windowCornerRadius: CGFloat = 40
 
-  /// The oval window elsewhere in this app only needed a little smoothing
-  /// since its edge in the art itself is already soft; this rect's corners
-  /// are a hard geometric cut with nothing like that to lean on, so it
-  /// needs more blur to keep the hand-off from reading as jagged.
+  /// A hard geometric rounded-rect cut, unlike the oval used elsewhere in
+  /// this app whose edge in the art is already soft -- needs more blur to
+  /// keep the hand-off from reading as jagged.
   static let windowEdgeFeather: CGFloat = 16
 }
 
-/// The whole caption is drawn fresh in white (no baked art to match), with
-/// a soft shadow for legibility against the frame's own pale background --
-/// plain white-on-white read as barely-there otherwise.
+/// The live date is the only part of the caption drawn fresh -- see
+/// `FrameLayout` for why. The baked art carries a "YYYY.MM.DD" placeholder
+/// at this position; drawing the real date in the same monospaced font,
+/// size, and color exactly covers it.
 private enum CaptionLayout {
-  private static let wghtAxisTag: UInt32 = 0x77_67_68_74
-
-  /// Same technique as ContentView's `googleSansFlex`: the abstract weight
-  /// *trait* doesn't reliably resolve this third-party variable font's
-  /// named instances, so the `wght` axis is set directly.
-  static func googleSansFlex(wght: CGFloat, size: CGFloat) -> NSFont {
-    let descriptor = NSFontDescriptor(fontAttributes: [
-      .name: "Google Sans Flex",
-      .size: size,
-      .variation: [wghtAxisTag: wght],
-    ])
-    return NSFont(descriptor: descriptor, size: size)
-      ?? NSFont.systemFont(ofSize: size, weight: .medium)
-  }
-
-  static let textColor = NSColor.white
-  static let rowColor = NSColor.white.withAlphaComponent(0.92)
-  static let shadowColor = NSColor.black.withAlphaComponent(0.4)
-  static let shadowBlur: CGFloat = 7
-
-  static let logoFont = googleSansFlex(wght: 500, size: 74)
-  /// "AirPop" reads with an odd gap between "o" and "p" at this font's
-  /// default spacing -- tightened by kerning just that one pair instead of
-  /// applying tracking to the whole word.
-  static let logoPopKerningRange = NSRange(location: 4, length: 1)
-  static let logoPopKerning: CGFloat = -logoFont.pointSize * 0.045
-  static let logoCenter = CGPoint(x: 600, y: 400)
-
-  static let byLineFont = googleSansFlex(wght: 500, size: 22)
-  static let byLineKerning: CGFloat = byLineFont.pointSize * 0.1
-  static let dividerColor = NSColor.white.withAlphaComponent(0.6)
-
   /// Handjet is a seven-segment-display-style face -- the faint "ghost"
   /// segments behind each lit digit are intentional to the font, not a
   /// rendering glitch, and read well as a photo-booth-style date stamp.
+  /// 32pt matches the baked placeholder's own rendered height (~23px).
   static let dateFont =
-    NSFont(name: "Handjet-SemiBold", size: 26)
-    ?? NSFont.monospacedSystemFont(ofSize: 26, weight: .semibold)
-  static let dateKerning: CGFloat = dateFont.pointSize * 0.12
-  static let rowCenter = CGPoint(x: 600, y: 330)
+    NSFont(name: "Handjet-SemiBold", size: 32)
+    ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .semibold)
+  /// Sampled from the baked credit/placeholder text (RGB 26,191,236) so
+  /// the live date matches exactly rather than approximating by eye.
+  static let dateColor = NSColor(
+    srgbRed: CGFloat(26) / 255, green: CGFloat(191) / 255,
+    blue: CGFloat(236) / 255, alpha: 1)
+  static let dateCenter = CGPoint(x: 600, y: 99)
+  /// A generous box around the baked "YYYY.MM.DD" placeholder (bottom-up).
+  static let datePlaceholderBlurRect = CGRect(x: 520, y: 82, width: 160, height: 33)
 }
 
 enum ResultPhotoComposer {
@@ -140,13 +114,16 @@ enum ResultPhotoComposer {
     context.restoreGState()
 
     drawSeamBubbles(context: context)
-    drawCaption(context: context)
+    drawDate(context: context)
 
     guard let result = context.makeImage() else { return nil }
     return NSImage(cgImage: result, size: outputSize)
   }
 
-  private static let baseCGImage: CGImage? = loadNamedImage("PhotoFrameSquare")
+  private static let baseCGImage: CGImage? = {
+    guard let raw = loadNamedImage("PhotoFrameSquare") else { return nil }
+    return suppressDatePlaceholder(in: raw)
+  }()
   private static let ciContext = CIContext(options: nil)
 
   /// A soft-edged mask the size of the whole canvas: opaque over the photo
@@ -197,6 +174,105 @@ enum ResultPhotoComposer {
     return blurredMask
   }
 
+  /// Replaces `CaptionLayout.datePlaceholderBlurRect` in the base image once
+  /// (cached in `baseCGImage`, not redone per capture) with a clean fill so
+  /// the baked "YYYY.MM.DD" placeholder is gone before the live date is ever
+  /// drawn on top of it. Samples clean background color from just outside
+  /// the placeholder glyphs and paints a gradient between those two
+  /// samples, rather than blurring the placeholder in place, which would
+  /// mix its ink into the surrounding pixels and leave a visible tint.
+  private static func suppressDatePlaceholder(in image: CGImage) -> CGImage {
+    let canvasSize = FrameLayout.canvasSize
+    guard
+      let context = CGContext(
+        data: nil,
+        width: Int(canvasSize.width),
+        height: Int(canvasSize.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else { return image }
+    context.draw(image, in: CGRect(origin: .zero, size: canvasSize))
+
+    let blurRect = CaptionLayout.datePlaceholderBlurRect
+    let pixelRect = CGRect(
+      x: blurRect.minX,
+      y: canvasSize.height - blurRect.maxY,
+      width: blurRect.width,
+      height: blurRect.height
+    )
+
+    guard let wholeBeforePatch = context.makeImage() else { return image }
+    let rep = NSBitmapImageRep(cgImage: wholeBeforePatch)
+    guard
+      let leftColor = rep.colorAt(x: Int(pixelRect.minX), y: Int(pixelRect.midY)),
+      let rightColor = rep.colorAt(x: Int(pixelRect.maxX), y: Int(pixelRect.midY)),
+      let patch = gradientPatch(from: leftColor, to: rightColor, size: blurRect.size)
+    else { return image }
+
+    context.draw(patch, in: blurRect)
+
+    let featherMargin: CGFloat = 6
+    let featherRect = blurRect.insetBy(dx: -featherMargin, dy: -featherMargin)
+    let featherPixelRect = CGRect(
+      x: featherRect.minX,
+      y: canvasSize.height - featherRect.maxY,
+      width: featherRect.width,
+      height: featherRect.height
+    )
+    if
+      let wholeAfterPatch = context.makeImage(),
+      let regionToFeather = wholeAfterPatch.cropping(to: featherPixelRect)
+    {
+      let ciRegion = CIImage(cgImage: regionToFeather)
+      if let blurFilter = CIFilter(name: "CIGaussianBlur") {
+        blurFilter.setValue(ciRegion.clampedToExtent(), forKey: kCIInputImageKey)
+        blurFilter.setValue(4.0, forKey: kCIInputRadiusKey)
+        if
+          let output = blurFilter.outputImage?.cropped(to: ciRegion.extent),
+          let blurredRegion = ciContext.createCGImage(output, from: ciRegion.extent)
+        {
+          context.draw(blurredRegion, in: featherRect)
+        }
+      }
+    }
+
+    return context.makeImage() ?? image
+  }
+
+  /// A `size`-sized horizontal linear gradient between two flat colors, used
+  /// to replace the baked date placeholder with a patch that carries none of
+  /// its color.
+  private static func gradientPatch(from: NSColor, to: NSColor, size: CGSize) -> CGImage? {
+    guard
+      let context = CGContext(
+        data: nil,
+        width: Int(size.width),
+        height: Int(size.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ),
+      let fromRGB = from.usingColorSpace(.deviceRGB),
+      let toRGB = to.usingColorSpace(.deviceRGB),
+      let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [fromRGB.cgColor, toRGB.cgColor] as CFArray,
+        locations: [0, 1]
+      )
+    else { return nil }
+    context.drawLinearGradient(
+      gradient,
+      start: CGPoint(x: 0, y: size.height / 2),
+      end: CGPoint(x: size.width, y: size.height / 2),
+      options: []
+    )
+    return context.makeImage()
+  }
+
   /// The five pastel colors used across the AirPuff/AirPop bubble design
   /// system, matching GameScene's BubblePalette and ContentView's Brand.
   /// Backed by the designer's handoff color set (`Assets.xcassets/Colors`)
@@ -218,20 +294,23 @@ enum ResultPhotoComposer {
 
   /// Fixed, not random: the same photo composited twice should look the
   /// same. x is a fraction of the window's width from its left edge.
+  /// Smaller than the old square frame's seam bubbles -- this window sits
+  /// close under the baked tagline and close above the baked credit line,
+  /// so oversized bubbles would crowd both.
   private static let topSeamBubbles = [
-    SeamBubble(x: 0.12, radius: 60, color: BubblePalette.skyBlue),
-    SeamBubble(x: 0.38, radius: 42, color: BubblePalette.pink),
-    SeamBubble(x: 0.62, radius: 48, color: BubblePalette.lilac),
-    SeamBubble(x: 0.88, radius: 40, color: BubblePalette.mint),
+    SeamBubble(x: 0.15, radius: 36, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.42, radius: 26, color: BubblePalette.pink),
+    SeamBubble(x: 0.65, radius: 30, color: BubblePalette.lilac),
+    SeamBubble(x: 0.87, radius: 24, color: BubblePalette.mint),
   ]
   private static let bottomSeamBubbles = [
-    SeamBubble(x: 0.10, radius: 55, color: BubblePalette.peach),
-    SeamBubble(x: 0.36, radius: 65, color: BubblePalette.lilac),
-    SeamBubble(x: 0.64, radius: 48, color: BubblePalette.skyBlue),
-    SeamBubble(x: 0.90, radius: 58, color: BubblePalette.pink),
+    SeamBubble(x: 0.10, radius: 40, color: BubblePalette.peach),
+    SeamBubble(x: 0.36, radius: 46, color: BubblePalette.lilac),
+    SeamBubble(x: 0.64, radius: 34, color: BubblePalette.skyBlue),
+    SeamBubble(x: 0.90, radius: 42, color: BubblePalette.pink),
   ]
-  private static let topSeamInset: CGFloat = 20
-  private static let bottomSeamInset: CGFloat = 30
+  private static let topSeamInset: CGFloat = 12
+  private static let bottomSeamInset: CGFloat = 20
 
   private static func drawSeamBubbles(context: CGContext) {
     let window = FrameLayout.windowRect
@@ -313,66 +392,30 @@ enum ResultPhotoComposer {
     return formatter
   }()
 
-  /// Draws the whole caption -- "AirPop" and a "by L & L | date" row below
-  /// it -- fresh on top of everything else, since PhotoFrameSquare carries
-  /// none of it baked in.
-  private static func drawCaption(context: CGContext) {
-    context.saveGState()
-    context.setShadow(
-      offset: .zero, blur: CaptionLayout.shadowBlur,
-      color: CaptionLayout.shadowColor.cgColor
-    )
-
+  /// Draws only the live capture date, centered exactly where the baked
+  /// "YYYY.MM.DD" placeholder in PhotoFrameSquare.png sits -- see
+  /// `CaptionLayout` for why nothing else needs to be drawn here.
+  private static func drawDate(context: CGContext) {
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
 
-    let logo = NSMutableAttributedString(
-      string: "AirPop",
-      attributes: [.font: CaptionLayout.logoFont, .foregroundColor: CaptionLayout.textColor]
-    )
-    logo.addAttribute(
-      .kern, value: CaptionLayout.logoPopKerning, range: CaptionLayout.logoPopKerningRange)
-    let logoSize = logo.size()
-    logo.draw(
-      at: CGPoint(
-        x: CaptionLayout.logoCenter.x - logoSize.width / 2,
-        y: CaptionLayout.logoCenter.y - logoSize.height / 2
-      )
-    )
-
-    let row = NSMutableAttributedString(
-      string: "by L & L",
+    let dateText = NSAttributedString(
+      string: captionDateFormatter.string(from: Date()),
       attributes: [
-        .font: CaptionLayout.byLineFont, .foregroundColor: CaptionLayout.rowColor,
-        .kern: CaptionLayout.byLineKerning,
+        .font: CaptionLayout.dateFont,
+        .foregroundColor: CaptionLayout.dateColor,
       ]
     )
-    row.append(
-      NSAttributedString(
-        string: "  |  ",
-        attributes: [.font: CaptionLayout.byLineFont, .foregroundColor: CaptionLayout.dividerColor]
-      )
-    )
-    row.append(
-      NSAttributedString(
-        string: captionDateFormatter.string(from: Date()),
-        attributes: [
-          .font: CaptionLayout.dateFont, .foregroundColor: CaptionLayout.rowColor,
-          .kern: CaptionLayout.dateKerning,
-        ]
-      )
-    )
-    let rowSize = row.size()
-    row.draw(
+    let dateSize = dateText.size()
+    dateText.draw(
       at: CGPoint(
-        x: CaptionLayout.rowCenter.x - rowSize.width / 2,
-        y: CaptionLayout.rowCenter.y - rowSize.height / 2
+        x: CaptionLayout.dateCenter.x - dateSize.width / 2,
+        y: CaptionLayout.dateCenter.y - dateSize.height / 2
       )
     )
 
     NSGraphicsContext.restoreGraphicsState()
-    context.restoreGState()
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter
