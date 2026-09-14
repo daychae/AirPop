@@ -623,7 +623,8 @@ struct ContentView: View {
             Button("PNG 저장") {
               saveResultPhoto(photo)
             }
-            .buttonStyle(.bordered)
+            .font(googleSansFlex(wght: 500, size: 13))
+            .buttonStyle(TintedPillButtonStyle(tint: Brand.lavender))
 
             Button("Try Again") {
               photoSaveMessage = nil
