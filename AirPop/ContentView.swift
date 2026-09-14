@@ -18,6 +18,10 @@ private enum Brand {
   static let mint = Color("Colors/Aqua")
   static let pink = Color("Colors/Blossom")
   static let peach = Color("Colors/Apricot")
+  /// A saturated, almost fluorescent green for "ready" status dots -- the
+  /// designer palette's pastel colors don't have anything this punchy, so
+  /// this one is a plain literal rather than a named asset color.
+  static let neonGreen = Color(red: 0x39 / 255, green: 1.0, blue: 0x14 / 255)
 }
 
 /// Google Sans Flex (bundled at `Fonts/GoogleSansFlex.ttf`, registered at
@@ -316,12 +320,12 @@ struct ContentView: View {
         // A nudge toward better framing, not a rule -- small and muted so
         // it doesn't compete with the ring/number for attention.
         Text("화면 중앙에 서주세요")
-          .font(.system(size: 36, weight: .semibold))
+          .font(.system(size: 24, weight: .semibold))
           .foregroundStyle(.white.opacity(0.75))
-          .padding(.horizontal, 28)
-          .padding(.vertical, 14)
+          .padding(.horizontal, 20)
+          .padding(.vertical, 10)
           .background(.black.opacity(0.35), in: Capsule())
-          .position(x: proxy.size.width / 2, y: proxy.size.height - 80)
+          .position(x: proxy.size.width / 2, y: proxy.size.height - 64)
           .opacity(countdownOverlayOpacity)
       }
       .ignoresSafeArea()
@@ -435,9 +439,10 @@ struct ContentView: View {
           .font(.caption)
           .foregroundStyle(.white.opacity(0.62))
 
-          Button("게임 시작") {
+          Button("START") {
             game.beginCountdown()
           }
+          .font(googleSansFlex(wght: 500, size: 15))
           .buttonStyle(.borderedProminent)
           .controlSize(.large)
           .tint(Brand.lavender)
@@ -518,7 +523,7 @@ struct ContentView: View {
         .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.white.opacity(0.88))
         .multilineTextAlignment(.center)
       Text(device)
         .font(googleSansFlex(wght: 400, size: 11))
@@ -561,7 +566,7 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 16) {
         Text("TIME UP!")
-          .font(googleSansFlex(wght: 700, size: 44))
+          .font(googleSansFlex(wght: 500, size: 44))
         if game.isNewHighScore {
           Text("NEW BEST")
             .font(googleSansFlex(wght: 700, size: 17))
@@ -574,9 +579,11 @@ struct ContentView: View {
         // Bombs are co-op-only and disabled in the two-player mode this
         // game actually ships with, so a "폭탄" stat here always reads 0 --
         // dropped rather than shown as permanent dead weight.
+        // Blue -> orange -> pink, matching the start screen's
+        // Puff/Pop/Pose order.
         HStack(spacing: 32) {
-          resultStat("버블", value: game.normalPopped, color: Brand.lavender)
-          resultStat("놓침", value: game.missed, color: .gray)
+          resultStat("버블", value: game.normalPopped, color: Brand.skyBlue)
+          resultStat("놓침", value: game.missed, color: Brand.peach)
           resultStat("최고 콤보", value: game.bestCombo, color: Brand.pink)
         }
 
@@ -596,10 +603,11 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
 
-            Button("다시 하기") {
+            Button("Try Again") {
               photoSaveMessage = nil
               game.returnToReady()
             }
+            .font(googleSansFlex(wght: 500, size: 13))
             .buttonStyle(.borderedProminent)
             .tint(Brand.lavender)
             .keyboardShortcut(.return, modifiers: [])
@@ -609,10 +617,11 @@ struct ContentView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-          Button("다시 하기") {
+          Button("Try Again") {
             photoSaveMessage = nil
             game.returnToReady()
           }
+          .font(googleSansFlex(wght: 500, size: 13))
           .buttonStyle(.borderedProminent)
           .tint(Brand.lavender)
           .keyboardShortcut(.return, modifiers: [])
@@ -639,6 +648,7 @@ struct ContentView: View {
           : "손을 찾는 중"
       )
       .font(googleSansFlex(wght: 700, size: 12))
+      .foregroundStyle(.white)
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
@@ -652,6 +662,7 @@ struct ContentView: View {
         .frame(width: 9, height: 9)
       Text(blowStatus.label)
         .font(googleSansFlex(wght: 700, size: 12))
+        .foregroundStyle(.white)
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
@@ -832,7 +843,7 @@ struct ContentView: View {
         .foregroundStyle(color)
       Text(title)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.white.opacity(0.85))
     }
     .frame(minWidth: 72)
   }
@@ -950,7 +961,7 @@ private struct ReadinessPill: View {
   var body: some View {
     HStack(spacing: 7) {
       Circle()
-        .fill(isReady ? Color.green : Color.white.opacity(0.35))
+        .fill(isReady ? Brand.neonGreen : Color.white.opacity(0.35))
         .frame(width: 7, height: 7)
         .opacity(isReady || isPulsing ? 1 : 0.4)
         .onAppear {
