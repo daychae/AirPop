@@ -33,6 +33,7 @@
 		A10000000000000000000035 /* Assets/Sounds/game_start.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035 /* Assets/Sounds/game_start.wav */; };
 		A10000000000000000000036 /* Assets/Sounds/game_over.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000036 /* Assets/Sounds/game_over.wav */; };
 		A10000000000000000000050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000050 /* Assets.xcassets */; };
+		A10000000000000000000060 /* GoogleSansFlex.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000060 /* GoogleSansFlex.ttf */; };
 		B10000000000000000000001 /* AirPuffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* AirPuffApp.swift */; };
 		B10000000000000000000002 /* BlowMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* BlowMeterView.swift */; };
 		B10000000000000000000003 /* BlowDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* BlowDetector.swift */; };
@@ -64,6 +65,7 @@
 		A20000000000000000000021 /* HostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAddress.swift; sourceTree = "<group>"; };
 		A20000000000000000000022 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 		A20000000000000000000023 /* ResultPhotoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPhotoComposer.swift; sourceTree = "<group>"; };
+		A20000000000000000000060 /* GoogleSansFlex.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fonts/GoogleSansFlex.ttf; sourceTree = "<group>"; };
 		A20000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_01.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_02.wav; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000032 /* Assets/Sounds/bubble_pop_03.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Assets/Sounds/bubble_pop_03.wav; sourceTree = SOURCE_ROOT; };
@@ -131,6 +133,7 @@
 				A20000000000000000000021 /* HostAddress.swift */,
 				A20000000000000000000022 /* AudioManager.swift */,
 				A20000000000000000000023 /* ResultPhotoComposer.swift */,
+				A20000000000000000000060 /* GoogleSansFlex.ttf */,
 				A20000000000000000000050 /* Assets.xcassets */,
 				A20000000000000000000008 /* Info.plist */,
 				A20000000000000000000009 /* AirPop.entitlements */,
@@ -275,6 +278,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000050 /* Assets.xcassets in Resources */,
+				A10000000000000000000060 /* GoogleSansFlex.ttf in Resources */,
 				A1000000000000000000000B /* PinchGestureClassifier.mlmodel in Resources */,
 				A10000000000000000000030 /* Assets/Sounds/bubble_pop_01.wav in Resources */,
 				A10000000000000000000031 /* Assets/Sounds/bubble_pop_02.wav in Resources */,

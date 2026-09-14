@@ -20,18 +20,24 @@ private enum Brand {
   static let peach = Color("Colors/Apricot")
 }
 
-/// SF Pro's Expanded width variant -- the same technique (and the same
-/// discrete instance, at width trait 0.2) as `ResultPhotoComposer`'s
-/// `CaptionLayout.sfProExpanded`, so the on-screen "AirPop" wordmark matches
-/// the one baked into the result photo's frame art instead of falling back
-/// to a plain system weight. `NSFontDescriptor.SymbolicTraits.expanded` does
-/// not work on this variable-width font; the numeric trait does.
-private func sfProExpanded(weight: NSFont.Weight, size: CGFloat) -> Font {
-  let base = NSFont.systemFont(ofSize: size, weight: weight)
-  let expanded = base.fontDescriptor.addingAttributes([
-    .traits: [NSFontDescriptor.TraitKey.width: 0.2]
+/// Google Sans Flex (bundled at `Fonts/GoogleSansFlex.ttf`, registered at
+/// launch in `AirPopApp.init`) for the start screen's English text --
+/// "AirPop", the Puff/Pop/Pose tagline and step titles, the device labels.
+/// Korean text on the same screen stays on the system font; Google Sans
+/// Flex has no Hangul coverage, and Core Text falls back automatically for
+/// any glyph it's missing, so a mixed-language Text still renders correctly.
+/// Weight is set via the trait descriptor (the same technique
+/// `ResultPhotoComposer.CaptionLayout.sfProExpanded` uses for width) rather
+/// than a fixed instance, since this is a variable font with real Thin
+/// through Black named instances.
+private func googleSansFlex(weight: NSFont.Weight, size: CGFloat) -> Font {
+  guard let base = NSFont(name: "Google Sans Flex", size: size) else {
+    return .system(size: size, weight: .semibold)
+  }
+  let descriptor = base.fontDescriptor.addingAttributes([
+    .traits: [NSFontDescriptor.TraitKey.weight: weight.rawValue]
   ])
-  return Font(NSFont(descriptor: expanded, size: size) ?? base)
+  return Font(NSFont(descriptor: descriptor, size: size) ?? base)
 }
 
 struct ContentView: View {
@@ -354,7 +360,7 @@ struct ContentView: View {
       GlassPanel {
         VStack(spacing: 18) {
           Text("AirPop")
-            .font(sfProExpanded(weight: .semibold, size: 58))
+            .font(googleSansFlex(weight: .semibold, size: 58))
             .foregroundStyle(Brand.lavender)
 
           startTagline
@@ -448,11 +454,10 @@ struct ContentView: View {
       Text("Puff").foregroundColor(Brand.skyBlue)
       + Text(", ").foregroundColor(.white.opacity(0.65))
       + Text("Pop").foregroundColor(Brand.lavender)
-      + Text(", ").foregroundColor(.white.opacity(0.65))
+      + Text(" and ").foregroundColor(.white.opacity(0.65))
       + Text("Pose").foregroundColor(Brand.peach)
-      + Text(".").foregroundColor(.white.opacity(0.65))
     )
-    .font(.title2.weight(.semibold))
+    .font(googleSansFlex(weight: .semibold, size: 22))
   }
 
   private func playStep(
@@ -472,14 +477,14 @@ struct ContentView: View {
           in: Circle()
         )
       Text(title)
-        .font(.subheadline.bold())
+        .font(googleSansFlex(weight: .bold, size: 15))
         .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
       Text(device)
-        .font(.caption2)
+        .font(googleSansFlex(weight: .regular, size: 11))
         .foregroundStyle(.white.opacity(0.4))
     }
     .frame(width: 118)
