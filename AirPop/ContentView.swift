@@ -237,7 +237,7 @@ struct ContentView: View {
 
         VStack(spacing: 2) {
           Text("TIME")
-            .font(.caption.bold())
+            .font(googleSansFlex(weight: .bold, size: 12))
             .foregroundStyle(.white.opacity(0.72))
           Text("\(game.timeRemaining)")
             .font(.system(size: 40, weight: .bold, design: .default))
@@ -263,7 +263,7 @@ struct ContentView: View {
         Spacer()
         if game.combo >= 2 {
           Text("\(game.combo) COMBO")
-            .font(.headline.bold())
+            .font(googleSansFlex(weight: .bold, size: 17))
             .foregroundStyle(Brand.pink)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
@@ -524,10 +524,10 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 16) {
         Text("TIME UP!")
-          .font(.system(size: 44, weight: .bold, design: .default))
+          .font(googleSansFlex(weight: .bold, size: 44))
         if game.isNewHighScore {
           Text("NEW BEST")
-            .font(.headline.bold())
+            .font(googleSansFlex(weight: .bold, size: 17))
             .foregroundStyle(Brand.peach)
         }
         Text("\(game.score)")
@@ -775,7 +775,7 @@ struct ContentView: View {
   private func hudCard(title: String, value: String, tint: Color) -> some View {
     VStack(alignment: .leading, spacing: 2) {
       Text(title)
-        .font(.caption.bold())
+        .font(googleSansFlex(weight: .bold, size: 12))
         .foregroundStyle(.white.opacity(0.68))
       Text(value)
         .font(.system(size: 32, weight: .bold, design: .default))
