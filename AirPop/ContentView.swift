@@ -443,6 +443,7 @@ struct ContentView: View {
             game.beginCountdown()
           }
           .font(googleSansFlex(wght: 500, size: 15))
+          .foregroundStyle(.white)
           .buttonStyle(.borderedProminent)
           .controlSize(.large)
           .tint(Brand.lavender)
@@ -565,7 +566,7 @@ struct ContentView: View {
   private var resultPanel: some View {
     GlassPanel {
       VStack(spacing: 16) {
-        Text("TIME UP!")
+        Text("TIME'S UP!")
           .font(googleSansFlex(wght: 500, size: 44))
         if game.isNewHighScore {
           Text("NEW BEST")
@@ -608,6 +609,7 @@ struct ContentView: View {
               game.returnToReady()
             }
             .font(googleSansFlex(wght: 500, size: 13))
+            .foregroundStyle(.white)
             .buttonStyle(.borderedProminent)
             .tint(Brand.lavender)
             .keyboardShortcut(.return, modifiers: [])
@@ -622,6 +624,7 @@ struct ContentView: View {
             game.returnToReady()
           }
           .font(googleSansFlex(wght: 500, size: 13))
+          .foregroundStyle(.white)
           .buttonStyle(.borderedProminent)
           .tint(Brand.lavender)
           .keyboardShortcut(.return, modifiers: [])
