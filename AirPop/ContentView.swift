@@ -26,18 +26,25 @@ private enum Brand {
 /// Korean text on the same screen stays on the system font; Google Sans
 /// Flex has no Hangul coverage, and Core Text falls back automatically for
 /// any glyph it's missing, so a mixed-language Text still renders correctly.
-/// Weight is set via the trait descriptor (the same technique
-/// `ResultPhotoComposer.CaptionLayout.sfProExpanded` uses for width) rather
-/// than a fixed instance, since this is a variable font with real Thin
-/// through Black named instances.
-private func googleSansFlex(weight: NSFont.Weight, size: CGFloat) -> Font {
-  guard let base = NSFont(name: "Google Sans Flex", size: size) else {
+///
+/// `wght` is the font's own OpenType axis value (100...900 -- Thin through
+/// Black), not `NSFont.Weight`. The abstract weight *trait* descriptor
+/// (the technique `ResultPhotoComposer.CaptionLayout.sfProExpanded` uses
+/// for SF Pro's width axis) turned out not to reliably resolve to this
+/// third-party font's named instances -- "black" rendered as barely
+/// heavier than regular -- so this sets the `wght` variation axis
+/// directly instead, which every variable font must honor.
+private func googleSansFlex(wght: CGFloat, size: CGFloat) -> Font {
+  let wghtAxisTag: UInt32 = 0x77_67_68_74  // 'wght' as a big-endian tag
+  let descriptor = NSFontDescriptor(fontAttributes: [
+    .name: "Google Sans Flex",
+    .size: size,
+    .variation: [wghtAxisTag: wght],
+  ])
+  guard let font = NSFont(descriptor: descriptor, size: size) else {
     return .system(size: size, weight: .semibold)
   }
-  let descriptor = base.fontDescriptor.addingAttributes([
-    .traits: [NSFontDescriptor.TraitKey.weight: weight.rawValue]
-  ])
-  return Font(NSFont(descriptor: descriptor, size: size) ?? base)
+  return Font(font)
 }
 
 struct ContentView: View {
@@ -241,7 +248,7 @@ struct ContentView: View {
 
         VStack(spacing: 2) {
           Text("TIME")
-            .font(googleSansFlex(weight: .bold, size: 12))
+            .font(googleSansFlex(wght: 700, size: 12))
             .foregroundStyle(.white.opacity(0.72))
           Text("\(game.timeRemaining)")
             .font(.system(size: 40, weight: .bold, design: .default))
@@ -267,7 +274,7 @@ struct ContentView: View {
         Spacer()
         if game.combo >= 2 {
           Text("\(game.combo) COMBO")
-            .font(googleSansFlex(weight: .bold, size: 17))
+            .font(googleSansFlex(wght: 700, size: 17))
             .foregroundStyle(Brand.pink)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
@@ -309,12 +316,12 @@ struct ContentView: View {
         // A nudge toward better framing, not a rule -- small and muted so
         // it doesn't compete with the ring/number for attention.
         Text("화면 중앙에 서주세요")
-          .font(.caption.weight(.semibold))
+          .font(.system(size: 36, weight: .semibold))
           .foregroundStyle(.white.opacity(0.75))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 7)
+          .padding(.horizontal, 28)
+          .padding(.vertical, 14)
           .background(.black.opacity(0.35), in: Capsule())
-          .position(x: proxy.size.width / 2, y: proxy.size.height - 40)
+          .position(x: proxy.size.width / 2, y: proxy.size.height - 80)
           .opacity(countdownOverlayOpacity)
       }
       .ignoresSafeArea()
@@ -380,7 +387,7 @@ struct ContentView: View {
       GlassPanel {
         VStack(spacing: 18) {
           Text("AirPop")
-            .font(googleSansFlex(weight: .black, size: 58))
+            .font(googleSansFlex(wght: 900, size: 58))
             .foregroundStyle(.white)
 
           startTagline
@@ -487,7 +494,7 @@ struct ContentView: View {
       + Text(" and ").foregroundColor(.white.opacity(0.65))
       + Text("Pose").foregroundColor(Brand.peach)
     )
-    .font(googleSansFlex(weight: .semibold, size: 22))
+    .font(googleSansFlex(wght: 600, size: 22))
   }
 
   private func playStep(
@@ -507,14 +514,14 @@ struct ContentView: View {
           in: Circle()
         )
       Text(title)
-        .font(googleSansFlex(weight: .bold, size: 15))
+        .font(googleSansFlex(wght: 700, size: 15))
         .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
       Text(device)
-        .font(googleSansFlex(weight: .regular, size: 11))
+        .font(googleSansFlex(wght: 400, size: 11))
         .foregroundStyle(.white.opacity(0.4))
     }
     .frame(width: 118)
@@ -554,10 +561,10 @@ struct ContentView: View {
     GlassPanel {
       VStack(spacing: 16) {
         Text("TIME UP!")
-          .font(googleSansFlex(weight: .bold, size: 44))
+          .font(googleSansFlex(wght: 700, size: 44))
         if game.isNewHighScore {
           Text("NEW BEST")
-            .font(googleSansFlex(weight: .bold, size: 17))
+            .font(googleSansFlex(wght: 700, size: 17))
             .foregroundStyle(Brand.peach)
         }
         Text("\(game.score)")
@@ -631,7 +638,7 @@ struct ContentView: View {
           ? "\(game.handCount)/4 HANDS"
           : "손을 찾는 중"
       )
-      .font(googleSansFlex(weight: .bold, size: 12))
+      .font(googleSansFlex(wght: 700, size: 12))
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
@@ -644,7 +651,7 @@ struct ContentView: View {
         .fill(blowStatus.color)
         .frame(width: 9, height: 9)
       Text(blowStatus.label)
-        .font(googleSansFlex(weight: .bold, size: 12))
+        .font(googleSansFlex(wght: 700, size: 12))
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
@@ -805,7 +812,7 @@ struct ContentView: View {
   private func hudCard(title: String, value: String, tint: Color) -> some View {
     VStack(alignment: .leading, spacing: 2) {
       Text(title)
-        .font(googleSansFlex(weight: .bold, size: 12))
+        .font(googleSansFlex(wght: 700, size: 12))
         .foregroundStyle(.white.opacity(0.68))
       Text(value)
         .font(.system(size: 32, weight: .bold, design: .default))
