@@ -18,13 +18,15 @@ struct AirPopApp: App {
         }
     }
 
-    /// Google Sans Flex isn't a system font, so it ships in the bundle
-    /// (Fonts/GoogleSansFlex.ttf) and has to be registered with Core Text
-    /// once at launch -- there's no Info.plist entry for a single loose
-    /// font file on macOS the way `UIAppFonts` works on iOS.
+    /// Neither Google Sans Flex nor Google Sans Code is a system font, so
+    /// both ship in the bundle and have to be registered with Core Text
+    /// once at launch -- there's no Info.plist entry for a loose font file
+    /// on macOS the way `UIAppFonts` works on iOS.
     private static func registerBundledFonts() {
-        guard let url = Bundle.main.url(forResource: "GoogleSansFlex", withExtension: "ttf")
-        else { return }
-        CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        for name in ["GoogleSansFlex", "GoogleSansCode-Medium"] {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf")
+            else { continue }
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
     }
 }

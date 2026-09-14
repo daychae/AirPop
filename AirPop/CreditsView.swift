@@ -6,7 +6,6 @@ import SwiftUI
 /// exhibition booth where nobody goes looking for an "About" item.
 struct CreditsView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var showsFullLicense = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -27,29 +26,15 @@ struct CreditsView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 22) {
           creditSection(title: "폰트") {
-            VStack(alignment: .leading, spacing: 6) {
-              Text("Google Sans Flex")
-                .font(.headline)
-              Text("영문 텍스트에 사용. SIL Open Font License 1.1로 배포되는 오픈소스 폰트로, 앱에 번들하여 배포하는 것이 허용됩니다.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-              Button(showsFullLicense ? "라이선스 원문 숨기기" : "라이선스 원문 보기") {
-                showsFullLicense.toggle()
-              }
-              .font(.callout)
-              .buttonStyle(.link)
-
-              if showsFullLicense {
-                ScrollView {
-                  Text(Self.googleSansFlexLicenseText)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                }
-                .frame(height: 180)
-                .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
-              }
+            VStack(alignment: .leading, spacing: 16) {
+              FontCreditRow(
+                name: "Google Sans Flex",
+                usage: "로고와 영문 텍스트에 사용.",
+                licenseResource: "GoogleSansFlex-OFL")
+              FontCreditRow(
+                name: "Google Sans Code",
+                usage: "결과 사진의 날짜 표기에 사용.",
+                licenseResource: "GoogleSansCode-OFL")
             }
           }
 
@@ -97,19 +82,54 @@ struct CreditsView: View {
     "AVFoundation -- 카메라 및 마이크 입력",
     "Network.framework (Bonjour) -- 아이폰-맥 실시간 통신",
   ]
+}
 
-  /// Read from the bundled OFL.txt rather than duplicated inline, so the
-  /// displayed text can never drift from the license actually shipped
-  /// alongside the font file.
-  private static let googleSansFlexLicenseText: String = {
+/// One bundled font's name, usage note, and an expandable license -- read
+/// live from the bundled `<licenseResource>.txt` rather than duplicated
+/// inline, so the displayed text can never drift from what's actually
+/// shipped alongside the font file.
+private struct FontCreditRow: View {
+  let name: String
+  let usage: String
+  let licenseResource: String
+  @State private var showsFullLicense = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(name)
+        .font(.headline)
+      Text("\(usage) SIL Open Font License 1.1로 배포되는 오픈소스 폰트로, 앱에 번들하여 배포하는 것이 허용됩니다.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      Button(showsFullLicense ? "라이선스 원문 숨기기" : "라이선스 원문 보기") {
+        showsFullLicense.toggle()
+      }
+      .font(.callout)
+      .buttonStyle(.link)
+
+      if showsFullLicense {
+        ScrollView {
+          Text(licenseText)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+        }
+        .frame(height: 180)
+        .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+  }
+
+  private var licenseText: String {
     guard
-      let url = Bundle.main.url(forResource: "GoogleSansFlex-OFL", withExtension: "txt"),
+      let url = Bundle.main.url(forResource: licenseResource, withExtension: "txt"),
       let text = try? String(contentsOf: url, encoding: .utf8)
     else {
       return "라이선스 파일을 불러오지 못했습니다."
     }
     return text
-  }()
+  }
 }
 
 #Preview {

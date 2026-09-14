@@ -34,28 +34,31 @@ private enum FrameLayout {
 /// `FrameLayout.windowRect` is) plus the date/divider spec from
 /// iOS_macOS_app_frames_updated/README.txt.
 private enum CaptionLayout {
-  /// SF Pro's Expanded width variant, for both the title and the
-  /// "by L & L"/date row, so the whole caption reads as one consistent
-  /// typeface instead of mixing a plain system weight with a substitute
-  /// monospace. `NSFontDescriptor.SymbolicTraits.expanded` is a coarse flag
-  /// that SF's variable-width axis doesn't actually respond to (it silently
-  /// fell back to a narrower, non-bold font); the numeric width trait does
-  /// -- 0.2 lands on the discrete ".SFNS-Expanded*" instance rather than
-  /// Semi- or Extra-Expanded on either side of it.
-  static func sfProExpanded(weight: NSFont.Weight, size: CGFloat) -> NSFont {
-    let base = NSFont.systemFont(ofSize: size, weight: weight)
-    let expanded = base.fontDescriptor.addingAttributes([
-      .traits: [NSFontDescriptor.TraitKey.width: 0.2]
+  /// The `wght` axis tag ('w','g','h','t' as a big-endian UInt32), for
+  /// setting Google Sans Flex's weight directly -- the abstract
+  /// NSFontDescriptor weight *trait* (what the old `sfProExpanded` used for
+  /// SF Pro's width axis) doesn't reliably resolve to this third-party
+  /// variable font's named instances. See ContentView's `googleSansFlex`
+  /// for the same technique on the SwiftUI side.
+  private static let wghtAxisTag: UInt32 = 0x77_67_68_74
+
+  static func googleSansFlex(wght: CGFloat, size: CGFloat) -> NSFont {
+    let descriptor = NSFontDescriptor(fontAttributes: [
+      .name: "Google Sans Flex",
+      .size: size,
+      .variation: [wghtAxisTag: wght],
     ])
-    return NSFont(descriptor: expanded, size: size) ?? base
+    return NSFont(descriptor: descriptor, size: size)
+      ?? NSFont.systemFont(ofSize: size, weight: .medium)
   }
 
   /// Twice the size the title was measured at in the baked art -- the logo
   /// can afford to read bigger than the source design.
   static let titleFontSize: CGFloat = 34 * 2
-  /// Semibold, not Bold -- Bold read too heavy at this size.
-  static let titleFont = sfProExpanded(weight: .semibold, size: titleFontSize)
-  /// Sampled from the baked title text in PhotoFrameCoolBase.png.
+  static let titleFont = googleSansFlex(wght: 500, size: titleFontSize)
+  /// Sampled from the baked title text in PhotoFrameCoolBase.png -- still
+  /// the old square frame's color; due for a re-sample once the new wide
+  /// frame (blue "AirPop", per the latest mockup) actually lands as a file.
   static let titleColor = NSColor(
     calibratedRed: CGFloat(0x3A) / 255, green: CGFloat(0x4A) / 255,
     blue: CGFloat(0xA8) / 255, alpha: 1)
@@ -68,12 +71,15 @@ private enum CaptionLayout {
   /// "by L & L", the date, and the divider between them all share one
   /// row/font size, sitting on the same baseline band as "by L & L" in the
   /// baked art (y 1106...1131, center 1118.5, matching the README's date
-  /// baseline band of y 1099...1135, center 1117). The README's date spec
-  /// called for IBM Plex Mono Regular; the SF Pro Expanded swap for the
-  /// title didn't read as well at this size/weight for this row, so it
-  /// keeps the original monospaced substitute.
+  /// baseline band of y 1099...1135, center 1117). "by L & L" is Google
+  /// Sans Flex like the title; the date is Google Sans Code Medium (a
+  /// separate bundled font -- Fonts/GoogleSansCode-Medium.ttf) for a
+  /// monospaced, code-like read.
   static let fontSize: CGFloat = 27
-  static let rowFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+  static let byLineFont = googleSansFlex(wght: 500, size: fontSize)
+  static let dateFont =
+    NSFont(name: "GoogleSansCode-Medium", size: fontSize)
+    ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
   /// The date and divider keep the spec's 0.24em; "by L & L" reads too
   /// loose at that tracking, so it's tightened.
   static let dateKerning: CGFloat = fontSize * 0.24
@@ -382,7 +388,7 @@ enum ResultPhotoComposer {
     let byLine = NSAttributedString(
       string: "by L & L",
       attributes: [
-        .font: CaptionLayout.rowFont,
+        .font: CaptionLayout.byLineFont,
         .foregroundColor: CaptionLayout.rowColor,
         .kern: CaptionLayout.byLineKerning,
       ]
@@ -390,7 +396,7 @@ enum ResultPhotoComposer {
     let dateText = NSAttributedString(
       string: captionDateFormatter.string(from: Date()),
       attributes: [
-        .font: CaptionLayout.rowFont,
+        .font: CaptionLayout.dateFont,
         .foregroundColor: CaptionLayout.rowColor,
         .kern: CaptionLayout.dateKerning,
       ]
