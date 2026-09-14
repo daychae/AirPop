@@ -387,7 +387,7 @@ struct ContentView: View {
       GlassPanel {
         VStack(spacing: 18) {
           Text("AirPop")
-            .font(googleSansFlex(wght: 900, size: 58))
+            .font(googleSansFlex(wght: 800, size: 58))
             .foregroundStyle(.white)
 
           startTagline
