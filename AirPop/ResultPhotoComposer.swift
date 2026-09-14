@@ -40,8 +40,8 @@ private enum CaptionLayout {
   /// height (~24-25px) -- 34pt measured about 3px taller, just enough to
   /// look mismatched against the rest of the caption.
   static let dateFont =
-    NSFont(name: "GoogleSansCode-Medium", size: 30)
-    ?? NSFont.monospacedSystemFont(ofSize: 30, weight: .medium)
+    NSFont(name: "GoogleSansCode-Regular", size: 30)
+    ?? NSFont.monospacedSystemFont(ofSize: 30, weight: .regular)
   /// Matches the baked "AirPop" logo's ink color exactly (sampled at
   /// RGB 38,154,255). `calibratedRed:` looked close but isn't identical --
   /// NSColor's calibrated color space applies its own conversion before
