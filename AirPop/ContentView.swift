@@ -387,7 +387,7 @@ struct ContentView: View {
       GlassPanel {
         VStack(spacing: 18) {
           Text("AirPop")
-            .font(googleSansFlex(wght: 600, size: 58))
+            .font(googleSansFlex(wght: 500, size: 58))
             .foregroundStyle(.white)
 
           startTagline
@@ -399,11 +399,11 @@ struct ContentView: View {
             stepConnector
             playStep(
               2, title: "Pop", detail: "엄지·검지로\n톡 터뜨리기",
-              device: "AirPop · 손동작", tint: Brand.lavender)
+              device: "AirPop · 손동작", tint: Brand.peach)
             stepConnector
             playStep(
               3, title: "Pose", detail: "5초 카운트다운\n뒤 촬영",
-              device: "마지막 순간, 찰칵", tint: Brand.peach)
+              device: "마지막 순간, 찰칵", tint: Brand.pink)
           }
 
           HStack(spacing: 10) {
@@ -490,11 +490,11 @@ struct ContentView: View {
     (
       Text("Puff").foregroundColor(Brand.skyBlue)
       + Text(", ").foregroundColor(.white.opacity(0.65))
-      + Text("Pop").foregroundColor(Brand.lavender)
+      + Text("Pop").foregroundColor(Brand.peach)
       + Text(" and ").foregroundColor(.white.opacity(0.65))
-      + Text("Pose").foregroundColor(Brand.peach)
+      + Text("Pose").foregroundColor(Brand.pink)
     )
-    .font(googleSansFlex(wght: 600, size: 22))
+    .font(googleSansFlex(wght: 400, size: 22))
   }
 
   private func playStep(
@@ -514,7 +514,7 @@ struct ContentView: View {
           in: Circle()
         )
       Text(title)
-        .font(googleSansFlex(wght: 700, size: 15))
+        .font(googleSansFlex(wght: 400, size: 15))
         .foregroundStyle(tint)
       Text(detail)
         .font(.caption)
