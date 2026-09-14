@@ -305,6 +305,17 @@ struct ContentView: View {
           .transition(.scale(scale: 1.12).combined(with: .opacity))
           .id(game.timeRemaining)
           .animation(.easeOut(duration: 0.28), value: game.timeRemaining)
+
+        // A nudge toward better framing, not a rule -- small and muted so
+        // it doesn't compete with the ring/number for attention.
+        Text("화면 중앙에 서주세요")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.white.opacity(0.75))
+          .padding(.horizontal, 14)
+          .padding(.vertical, 7)
+          .background(.black.opacity(0.35), in: Capsule())
+          .position(x: proxy.size.width / 2, y: proxy.size.height - 40)
+          .opacity(countdownOverlayOpacity)
       }
       .ignoresSafeArea()
       .allowsHitTesting(false)
