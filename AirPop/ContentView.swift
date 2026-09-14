@@ -24,6 +24,27 @@ private enum Brand {
   static let neonGreen = Color(red: 0x39 / 255, green: 1.0, blue: 0x14 / 255)
 }
 
+/// `.buttonStyle(.borderedProminent)` on macOS picks its own label color for
+/// contrast against `.tint(...)` and ignores an explicit `.foregroundStyle`
+/// on the button -- so START and Try Again rendered with dark text instead
+/// of the white the rest of the HUD uses. Drawing the tinted pill by hand
+/// sidesteps that and guarantees white.
+private struct TintedPillButtonStyle: ButtonStyle {
+  let tint: Color
+  var horizontalPadding: CGFloat = 20
+  var verticalPadding: CGFloat = 10
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .foregroundStyle(.white)
+      .padding(.horizontal, horizontalPadding)
+      .padding(.vertical, verticalPadding)
+      .background(tint.opacity(configuration.isPressed ? 0.75 : 1), in: Capsule())
+      .opacity(isEnabled ? 1 : 0.4)
+  }
+}
+
 /// Google Sans Flex (bundled at `Fonts/GoogleSansFlex.ttf`, registered at
 /// launch in `AirPopApp.init`) for the start screen's English text --
 /// "AirPop", the Puff/Pop/Pose tagline and step titles, the device labels.
@@ -246,7 +267,7 @@ struct ContentView: View {
   private var hud: some View {
     VStack {
       HStack(spacing: 14) {
-        hudCard(title: "SCORE", value: "\(game.score)", tint: Brand.lavender)
+        hudCard(title: "SCORE", value: "\(game.score)", tint: Brand.pink)
 
         Spacer()
 
@@ -443,10 +464,7 @@ struct ContentView: View {
             game.beginCountdown()
           }
           .font(googleSansFlex(wght: 500, size: 15))
-          .foregroundStyle(.white)
-          .buttonStyle(.borderedProminent)
-          .controlSize(.large)
-          .tint(Brand.lavender)
+          .buttonStyle(TintedPillButtonStyle(tint: Brand.lavender, horizontalPadding: 28, verticalPadding: 12))
           .disabled(!game.canStart)
           .keyboardShortcut(.space, modifiers: [])
 
@@ -589,13 +607,16 @@ struct ContentView: View {
         }
 
         if let photo = game.resultPhoto {
-          // PhotoFrameCool is a square 1200x1200 card with its own border
-          // and bubbles baked in, so the preview just needs to size it --
+          // PhotoFrameWide is a 1920x1200 card with its own border, logo,
+          // and caption baked in, so the preview just needs to size it --
           // no extra clip shape or stroke on top of the frame art itself.
+          // The box below matches that 1920:1200 ratio exactly (rather
+          // than the old square card's box) so the photo fills it edge to
+          // edge instead of leaving letterboxed space top and bottom.
           Image(nsImage: photo)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: 320, maxHeight: 320)
+            .frame(maxWidth: 380, maxHeight: 380 * 1200 / 1920)
             .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
           HStack(spacing: 12) {
@@ -609,9 +630,7 @@ struct ContentView: View {
               game.returnToReady()
             }
             .font(googleSansFlex(wght: 500, size: 13))
-            .foregroundStyle(.white)
-            .buttonStyle(.borderedProminent)
-            .tint(Brand.lavender)
+            .buttonStyle(TintedPillButtonStyle(tint: Brand.lavender))
             .keyboardShortcut(.return, modifiers: [])
           }
         } else {
@@ -624,9 +643,7 @@ struct ContentView: View {
             game.returnToReady()
           }
           .font(googleSansFlex(wght: 500, size: 13))
-          .foregroundStyle(.white)
-          .buttonStyle(.borderedProminent)
-          .tint(Brand.lavender)
+          .buttonStyle(TintedPillButtonStyle(tint: Brand.lavender))
           .keyboardShortcut(.return, modifiers: [])
         }
 
@@ -824,7 +841,7 @@ struct ContentView: View {
   }
 
   private func hudCard(title: String, value: String, tint: Color) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(spacing: 2) {
       Text(title)
         .font(googleSansFlex(wght: 700, size: 12))
         .foregroundStyle(.white.opacity(0.68))
@@ -833,7 +850,7 @@ struct ContentView: View {
         .foregroundStyle(tint)
         .contentTransition(.numericText())
     }
-    .frame(width: 110, alignment: .leading)
+    .frame(width: 110)
     .padding(.horizontal, 18)
     .padding(.vertical, 10)
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
