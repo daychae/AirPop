@@ -11,12 +11,13 @@ import CoreImage
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
-  /// The photo window, picked to fill the art's bright "clearing" while
-  /// clearing the baked tagline just above it (bottom of "puff + ÷ pop +
-  /// ÷ pose" sits at top-left y~195) and leaving generous room below for
-  /// the credit/date block (top-left y~1044) -- checked by eye against
-  /// the actual asset, not measured off a spec.
-  static let windowRect = CGRect(x: 150, y: 500, width: 900, height: 495)
+  /// The photo window, picked to fill the art's bright "clearing" (which
+  /// moved down and re-centered in the handoff-7 background compared to
+  /// the version this was first tuned against) while still clearing the
+  /// baked tagline above it (bottom sits at top-left y~195) and leaving
+  /// generous room below for the credit/date block (top-left y~1044) --
+  /// checked by eye against the actual asset, not measured off a spec.
+  static let windowRect = CGRect(x: 150, y: 315, width: 900, height: 520)
   static let windowCornerRadius: CGFloat = 40
 
   /// A hard geometric rounded-rect cut, unlike the oval used elsewhere in
@@ -35,8 +36,8 @@ private enum CaptionLayout {
   /// rendering glitch, and read well as a photo-booth-style date stamp.
   /// 32pt matches the baked placeholder's own rendered height (~23px).
   static let dateFont =
-    NSFont(name: "Handjet-SemiBold", size: 32)
-    ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .semibold)
+    NSFont(name: "Handjet-Medium", size: 32)
+    ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .medium)
   /// Sampled from the baked credit/placeholder text (RGB 26,191,236) so
   /// the live date matches exactly rather than approximating by eye.
   static let dateColor = NSColor(

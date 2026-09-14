@@ -23,7 +23,7 @@ struct AirPopApp: App {
     /// launch -- there's no Info.plist entry for a loose font file on
     /// macOS the way `UIAppFonts` works on iOS.
     private static func registerBundledFonts() {
-        for name in ["GoogleSansFlex", "Handjet-SemiBold"] {
+        for name in ["GoogleSansFlex", "Handjet-Medium"] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf")
             else { continue }
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
