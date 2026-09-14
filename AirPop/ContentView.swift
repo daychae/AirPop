@@ -46,6 +46,7 @@ struct ContentView: View {
   @StateObject private var game = GameSession()
   @StateObject private var blowServer = AirPopBonjourServer()
   @State private var showsDiagnostics = false
+  @State private var showsCredits = false
   @State private var hostAddress: HostAddress.Entry?
   @State private var photoSaveMessage: String?
   @State private var photoFlashOpacity: Double = 0
@@ -132,6 +133,9 @@ struct ContentView: View {
         .keyboardShortcut("[", modifiers: [])
       }
       .opacity(0)
+    }
+    .sheet(isPresented: $showsCredits) {
+      CreditsView()
     }
     .onAppear {
       hostAddress = HostAddress.preferred()
@@ -416,6 +420,16 @@ struct ContentView: View {
           .tint(Brand.lavender)
           .disabled(!game.canStart)
           .keyboardShortcut(.space, modifiers: [])
+
+          // Exhibition visitors don't go looking through a menu bar for
+          // an "About" item, so the font/tech acknowledgments live one
+          // tap away on the screen they'll actually be looking at.
+          Button("ⓘ 크레딧") {
+            showsCredits = true
+          }
+          .buttonStyle(.plain)
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.4))
         }
         .padding(.horizontal, 20)
       }
@@ -601,7 +615,7 @@ struct ContentView: View {
           ? "\(game.handCount)/4 HANDS"
           : "손을 찾는 중"
       )
-      .font(.caption.bold())
+      .font(googleSansFlex(weight: .bold, size: 12))
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
@@ -614,7 +628,7 @@ struct ContentView: View {
         .fill(blowStatus.color)
         .frame(width: 9, height: 9)
       Text(blowStatus.label)
-        .font(.caption.bold())
+        .font(googleSansFlex(weight: .bold, size: 12))
     }
     .padding(.horizontal, 13)
     .padding(.vertical, 8)
