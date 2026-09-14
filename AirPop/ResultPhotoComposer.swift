@@ -114,7 +114,6 @@ enum ResultPhotoComposer {
 
     context.restoreGState()
 
-    drawSeamBubbles(context: context)
     drawDate(context: context)
 
     guard let result = context.makeImage() else { return nil }
@@ -274,113 +273,6 @@ enum ResultPhotoComposer {
     return context.makeImage()
   }
 
-  /// The five pastel colors used across the AirPuff/AirPop bubble design
-  /// system, matching GameScene's BubblePalette and ContentView's Brand.
-  /// Backed by the designer's handoff color set (`Assets.xcassets/Colors`)
-  /// instead of hand-picked hex -- see ContentView's `Brand` enum for the
-  /// full mapping.
-  private enum BubblePalette {
-    static let skyBlue = NSColor(named: "Colors/Sky")!
-    static let lilac = NSColor(named: "Colors/Lilac")!
-    static let mint = NSColor(named: "Colors/Aqua")!
-    static let pink = NSColor(named: "Colors/Blossom")!
-    static let peach = NSColor(named: "Colors/Apricot")!
-  }
-
-  private struct SeamBubble {
-    let x: CGFloat
-    let radius: CGFloat
-    let color: NSColor
-  }
-
-  /// Fixed, not random: the same photo composited twice should look the
-  /// same. x is a fraction of the window's width from its left edge.
-  /// Smaller than the old square frame's seam bubbles -- this window sits
-  /// close under the baked tagline and close above the baked credit line,
-  /// so oversized bubbles would crowd both.
-  private static let topSeamBubbles = [
-    SeamBubble(x: 0.15, radius: 36, color: BubblePalette.skyBlue),
-    SeamBubble(x: 0.42, radius: 26, color: BubblePalette.pink),
-    SeamBubble(x: 0.65, radius: 30, color: BubblePalette.lilac),
-    SeamBubble(x: 0.87, radius: 24, color: BubblePalette.mint),
-  ]
-  private static let bottomSeamBubbles = [
-    SeamBubble(x: 0.10, radius: 40, color: BubblePalette.peach),
-    SeamBubble(x: 0.36, radius: 46, color: BubblePalette.lilac),
-    SeamBubble(x: 0.64, radius: 34, color: BubblePalette.skyBlue),
-    SeamBubble(x: 0.90, radius: 42, color: BubblePalette.pink),
-  ]
-  private static let topSeamInset: CGFloat = 12
-  private static let bottomSeamInset: CGFloat = 20
-
-  private static func drawSeamBubbles(context: CGContext) {
-    let window = FrameLayout.windowRect
-    for bubble in topSeamBubbles {
-      drawFrostedBubble(
-        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.maxY - topSeamInset),
-        radius: bubble.radius,
-        color: bubble.color,
-        context: context
-      )
-    }
-    for bubble in bottomSeamBubbles {
-      drawFrostedBubble(
-        center: CGPoint(x: window.minX + window.width * bubble.x, y: window.minY + bottomSeamInset),
-        radius: bubble.radius,
-        color: bubble.color,
-        context: context
-      )
-    }
-  }
-
-  /// A frosted-glass bubble matching the frame art's own bubbles: a radial
-  /// gradient fill (bright highlight fading to the tint), a soft outer
-  /// glow, and a white rim.
-  private static func drawFrostedBubble(
-    center: CGPoint,
-    radius: CGFloat,
-    color: NSColor,
-    context: CGContext
-  ) {
-    context.saveGState()
-    context.setShadow(
-      offset: .zero,
-      blur: radius * 0.5,
-      color: color.withAlphaComponent(0.45).cgColor
-    )
-    context.setFillColor(color.withAlphaComponent(0.001).cgColor)
-    context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
-    context.restoreGState()
-
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let stops = [
-      NSColor.white.withAlphaComponent(0.95).cgColor,
-      color.withAlphaComponent(0.7).cgColor,
-      color.withAlphaComponent(0.35).cgColor,
-    ]
-    guard
-      let gradient = CGGradient(colorsSpace: colorSpace, colors: stops as CFArray, locations: [0, 0.55, 1])
-    else { return }
-
-    context.saveGState()
-    context.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
-    context.clip()
-    let highlightCenter = CGPoint(x: center.x - radius * 0.16, y: center.y + radius * 0.18)
-    context.drawRadialGradient(
-      gradient,
-      startCenter: highlightCenter, startRadius: 0,
-      endCenter: center, endRadius: radius * 1.05,
-      options: [.drawsAfterEndLocation]
-    )
-    context.restoreGState()
-
-    context.saveGState()
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.85).cgColor)
-    context.setLineWidth(max(1.6, radius * 0.035))
-    context.strokeEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
-    context.restoreGState()
-  }
-
   private static func loadNamedImage(_ name: String) -> CGImage? {
     guard let image = NSImage(named: name) else { return nil }
     var rect = CGRect(origin: .zero, size: image.size)
@@ -424,8 +316,7 @@ enum ResultPhotoComposer {
   /// centered crop was cutting off both the top of the player's head and
   /// their chest/shoulders. Weighting the vertical crop toward the top
   /// keeps the head in frame and lets the extra cropping fall on the body
-  /// below instead, which the seam bubbles at the window's edges already
-  /// help cover rather than cutting hard.
+  /// below instead.
   private static let verticalCropBias: CGFloat = 0.85
 
   private static func aspectFillRect(source: CGSize, in bounds: CGRect) -> CGRect {
