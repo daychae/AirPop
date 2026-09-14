@@ -47,7 +47,7 @@ private enum CaptionLayout {
   /// font/size/position looked right in theory -- both strings are 10
   /// characters in the same digits/dots pattern -- but any sub-pixel
   /// mismatch between the two left a visible ghosted double-exposure of
-  /// glyph edges. Blurring this box into the base image once (see
+  /// glyph edges. Replacing this box with a clean background fill once (see
   /// `ResultPhotoComposer.suppressDatePlaceholder`) erases the placeholder
   /// outright, so the live date goes on top of a clean surface instead of
   /// trying to land exactly on top of another string.
@@ -166,10 +166,18 @@ enum ResultPhotoComposer {
     return blurredMask
   }
 
-  /// Blurs `CaptionLayout.datePlaceholderBlurRect` into the base image once
-  /// (cached in `baseCGImage`, not redone per capture) so the baked
-  /// "YYYY.MM.DD" placeholder dissolves into an unreadable smudge before
-  /// the live date is ever drawn on top of it.
+  /// Replaces `CaptionLayout.datePlaceholderBlurRect` in the base image once
+  /// (cached in `baseCGImage`, not redone per capture) with a clean fill so
+  /// the baked "YYYY.MM.DD" placeholder is gone before the live date is ever
+  /// drawn on top of it.
+  ///
+  /// An earlier version blurred the placeholder in place instead of
+  /// replacing it, which softened the glyphs but mixed their blue ink into
+  /// the surrounding pixels -- leaving a faint blue glow around the live
+  /// date. Sampling clean background color from just outside the glyphs and
+  /// painting a gradient between those two samples removes the blue
+  /// entirely; a light blur of a small margin around the patch (of the new,
+  /// already-clean pixels only) then hides the patch's own rectangular edge.
   private static func suppressDatePlaceholder(in image: CGImage) -> CGImage {
     let canvasSize = FrameLayout.canvasSize
     guard
@@ -192,22 +200,74 @@ enum ResultPhotoComposer {
       width: blurRect.width,
       height: blurRect.height
     )
+
+    guard let wholeBeforePatch = context.makeImage() else { return image }
+    let rep = NSBitmapImageRep(cgImage: wholeBeforePatch)
     guard
-      let unblurredWhole = context.makeImage(),
-      let croppedRegion = unblurredWhole.cropping(to: pixelRect)
+      let leftColor = rep.colorAt(x: Int(pixelRect.minX), y: Int(pixelRect.midY)),
+      let rightColor = rep.colorAt(x: Int(pixelRect.maxX), y: Int(pixelRect.midY)),
+      let patch = gradientPatch(from: leftColor, to: rightColor, size: blurRect.size)
     else { return image }
 
-    let ciImage = CIImage(cgImage: croppedRegion)
-    guard let blurFilter = CIFilter(name: "CIGaussianBlur") else { return image }
-    blurFilter.setValue(ciImage.clampedToExtent(), forKey: kCIInputImageKey)
-    blurFilter.setValue(14.0, forKey: kCIInputRadiusKey)
-    guard
-      let output = blurFilter.outputImage?.cropped(to: ciImage.extent),
-      let blurredRegion = ciContext.createCGImage(output, from: ciImage.extent)
-    else { return image }
+    context.draw(patch, in: blurRect)
 
-    context.draw(blurredRegion, in: blurRect)
+    let featherMargin: CGFloat = 6
+    let featherRect = blurRect.insetBy(dx: -featherMargin, dy: -featherMargin)
+    let featherPixelRect = CGRect(
+      x: featherRect.minX,
+      y: canvasSize.height - featherRect.maxY,
+      width: featherRect.width,
+      height: featherRect.height
+    )
+    if
+      let wholeAfterPatch = context.makeImage(),
+      let regionToFeather = wholeAfterPatch.cropping(to: featherPixelRect)
+    {
+      let ciRegion = CIImage(cgImage: regionToFeather)
+      if let blurFilter = CIFilter(name: "CIGaussianBlur") {
+        blurFilter.setValue(ciRegion.clampedToExtent(), forKey: kCIInputImageKey)
+        blurFilter.setValue(4.0, forKey: kCIInputRadiusKey)
+        if
+          let output = blurFilter.outputImage?.cropped(to: ciRegion.extent),
+          let blurredRegion = ciContext.createCGImage(output, from: ciRegion.extent)
+        {
+          context.draw(blurredRegion, in: featherRect)
+        }
+      }
+    }
+
     return context.makeImage() ?? image
+  }
+
+  /// A `size`-sized horizontal linear gradient between two flat colors, used
+  /// to replace the baked date placeholder with a patch that carries none of
+  /// its color.
+  private static func gradientPatch(from: NSColor, to: NSColor, size: CGSize) -> CGImage? {
+    guard
+      let context = CGContext(
+        data: nil,
+        width: Int(size.width),
+        height: Int(size.height),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ),
+      let fromRGB = from.usingColorSpace(.deviceRGB),
+      let toRGB = to.usingColorSpace(.deviceRGB),
+      let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [fromRGB.cgColor, toRGB.cgColor] as CFArray,
+        locations: [0, 1]
+      )
+    else { return nil }
+    context.drawLinearGradient(
+      gradient,
+      start: CGPoint(x: 0, y: size.height / 2),
+      end: CGPoint(x: size.width, y: size.height / 2),
+      options: []
+    )
+    return context.makeImage()
   }
 
   private static func loadNamedImage(_ name: String) -> CGImage? {
