@@ -324,6 +324,11 @@ struct ContentView: View {
           .font(.system(size: 150, weight: .bold, design: .default))
           .foregroundStyle(.white)
           .shadow(color: Brand.lavender, radius: 22)
+          // A single big digit's own glyph bounds sit higher than the
+          // font's full line box (which reserves room for descenders no
+          // digit uses), so centering the text view itself still reads as
+          // pushed up -- nudge it down to compensate.
+          .offset(y: 12)
       case .playing:
         EmptyView()
       case .pausedHandLost:
