@@ -16,8 +16,12 @@ private enum FrameLayout {
 
   /// The oval photo window, already converted from the asset's top-left
   /// pixel measurement into CGContext's bottom-up coordinate space:
-  /// y = canvasHeight - top - height.
-  static let windowRect = CGRect(x: 552, y: 516, width: 815, height: 433)
+  /// y = canvasHeight - top - height. Enlarged from the original
+  /// 815x433 (top-left 552,251) to give the actual photo more presence
+  /// against the decorative bubble art, while still clearing the divider
+  /// dots baked in just above "AirPop" (top-left y 851) and the bubbles
+  /// flanking the window on both sides.
+  static let windowRect = CGRect(x: 410, y: 430, width: 1100, height: 620)
 
   /// The oval's own edge in the art is already soft (a faint glow ring),
   /// so this only needs to smooth the hand-off between that and the photo,
@@ -32,12 +36,19 @@ private enum FrameLayout {
 /// same monospaced font, size, and color exactly covers it, since both
 /// strings are 10 characters in the same digits/dots pattern.
 private enum CaptionLayout {
+  /// 30pt matches the baked "YYYY.MM.DD" placeholder's own rendered
+  /// height (~24-25px) -- 34pt measured about 3px taller, just enough to
+  /// look mismatched against the rest of the caption.
   static let dateFont =
-    NSFont(name: "GoogleSansCode-Medium", size: 34)
-    ?? NSFont.monospacedSystemFont(ofSize: 34, weight: .medium)
-  /// Sampled from the baked "YYYY.MM.DD" placeholder in PhotoFrameWide.png.
+    NSFont(name: "GoogleSansCode-Medium", size: 30)
+    ?? NSFont.monospacedSystemFont(ofSize: 30, weight: .medium)
+  /// Matches the baked "AirPop" logo's ink color exactly (sampled at
+  /// RGB 38,154,255). `calibratedRed:` looked close but isn't identical --
+  /// NSColor's calibrated color space applies its own conversion before
+  /// landing in a device-RGB bitmap context, which visibly lightened this
+  /// blue; `srgbRed:` (like `deviceRed:`) writes the exact byte values.
   static let dateColor = NSColor(
-    calibratedRed: CGFloat(0x26) / 255, green: CGFloat(0x9A) / 255,
+    srgbRed: CGFloat(0x26) / 255, green: CGFloat(0x9A) / 255,
     blue: CGFloat(0xFF) / 255, alpha: 1)
   /// Center of the date text, measured off the baked placeholder's pixel
   /// bounds (top-left y 1110...1135, x 856...1063), converted to bottom-up.
