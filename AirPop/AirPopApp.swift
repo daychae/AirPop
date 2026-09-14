@@ -18,12 +18,12 @@ struct AirPopApp: App {
         }
     }
 
-    /// Neither Google Sans Flex nor Google Sans Code is a system font, so
-    /// both ship in the bundle and have to be registered with Core Text
-    /// once at launch -- there's no Info.plist entry for a loose font file
-    /// on macOS the way `UIAppFonts` works on iOS.
+    /// Neither Google Sans Flex nor Handjet is a system font, so both ship
+    /// in the bundle and have to be registered with Core Text once at
+    /// launch -- there's no Info.plist entry for a loose font file on
+    /// macOS the way `UIAppFonts` works on iOS.
     private static func registerBundledFonts() {
-        for name in ["GoogleSansFlex", "GoogleSansCode-Regular"] {
+        for name in ["GoogleSansFlex", "Handjet-SemiBold"] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf")
             else { continue }
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)

@@ -607,16 +607,14 @@ struct ContentView: View {
         }
 
         if let photo = game.resultPhoto {
-          // PhotoFrameWide is a 1920x1200 card with its own border, logo,
-          // and caption baked in, so the preview just needs to size it --
+          // PhotoFrameSquare is a 1200x1200 card with its own border and
+          // decoration baked in (the caption is drawn fresh on top, see
+          // ResultPhotoComposer), so the preview just needs to size it --
           // no extra clip shape or stroke on top of the frame art itself.
-          // The box below matches that 1920:1200 ratio exactly (rather
-          // than the old square card's box) so the photo fills it edge to
-          // edge instead of leaving letterboxed space top and bottom.
           Image(nsImage: photo)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: 380, maxHeight: 380 * 1200 / 1920)
+            .frame(maxWidth: 340, maxHeight: 340)
             .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
           HStack(spacing: 12) {

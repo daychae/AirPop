@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "PhotoFrameWide.png",
+      "filename" : "PhotoFrameSquare.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "PhotoFrameWide@2x.png",
+      "filename" : "PhotoFrameSquare@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     }

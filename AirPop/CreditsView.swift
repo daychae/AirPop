@@ -32,9 +32,9 @@ struct CreditsView: View {
                 usage: "로고와 영문 텍스트에 사용.",
                 licenseResource: "GoogleSansFlex-OFL")
               FontCreditRow(
-                name: "Google Sans Code",
+                name: "Handjet",
                 usage: "결과 사진의 날짜 표기에 사용.",
-                licenseResource: "GoogleSansCode-OFL")
+                licenseResource: "Handjet-OFL")
             }
           }
 
