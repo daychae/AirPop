@@ -179,13 +179,20 @@ struct ContentView: View {
           let cameraImage = tracker?.latestCameraImage(),
           let scene
         else {
-          return nil
+          return []
         }
-        return ResultPhotoComposer.make(
-          cameraImage: cameraImage,
-          overlayImage: scene.snapshotImage(),
-          canvasSize: scene.size
-        )
+        // Same camera frame and overlay snapshot for every shape, so the
+        // player is picking between frames on an otherwise identical
+        // photo, not comparing different moments.
+        let overlayImage = scene.snapshotImage()
+        return WindowShape.allCases.compactMap { shape in
+          ResultPhotoComposer.make(
+            cameraImage: cameraImage,
+            overlayImage: overlayImage,
+            canvasSize: scene.size,
+            windowShape: shape
+          )
+        }
       }
       blowServer.start(
         onBlowStarted: { strength in
@@ -617,6 +624,10 @@ struct ContentView: View {
             .frame(maxWidth: 340, maxHeight: 340)
             .shadow(color: Brand.skyBlue.opacity(0.28), radius: 20)
 
+          if game.resultPhotoOptions.count > 1 {
+            resultPhotoPicker
+          }
+
           HStack(spacing: 12) {
             Button("PNG 저장") {
               saveResultPhoto(photo)
@@ -853,6 +864,32 @@ struct ContentView: View {
     .padding(.horizontal, 18)
     .padding(.vertical, 10)
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+  }
+
+  /// A row of small tappable thumbnails, one per `WindowShape` the photo
+  /// was rendered in, so the player can pick a frame before saving instead
+  /// of getting whichever one capture happened to land on.
+  private var resultPhotoPicker: some View {
+    HStack(spacing: 10) {
+      ForEach(Array(game.resultPhotoOptions.enumerated()), id: \.offset) { index, option in
+        let isSelected = index == game.selectedResultPhotoIndex
+        Button {
+          game.selectResultPhoto(at: index)
+        } label: {
+          Image(nsImage: option)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay {
+              RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Brand.lavender : .white.opacity(0.3), lineWidth: isSelected ? 3 : 1)
+            }
+            .opacity(isSelected ? 1 : 0.6)
+        }
+        .buttonStyle(.plain)
+      }
+    }
   }
 
   private func resultStat(_ title: String, value: Int, color: Color) -> some View {

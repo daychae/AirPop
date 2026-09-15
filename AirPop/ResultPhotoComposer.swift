@@ -17,14 +17,15 @@ private enum FrameLayout {
   static let windowEdgeFeather: CGFloat = 16
 }
 
-/// Two window shapes, both kept (picked at random per capture) rather
-/// than settling on one -- both were liked, and neither is baked into
-/// the art (the photo window is always a code-side clip), so there's no
-/// extra asset cost to keeping both. Both were sized by eye to fill the
-/// art's bright "clearing" while still clearing the baked tagline above
-/// (bottom sits at top-left y~195) and the credit/date block below (top
-/// starts at top-left y~1044).
-private enum WindowShape: CaseIterable {
+/// Two window shapes, both kept -- both were liked, and neither is baked
+/// into the art (the photo window is always a code-side clip), so
+/// there's no extra asset cost to keeping both. Rather than picking one
+/// internally, `ResultPhotoComposer.make` takes the shape as a parameter
+/// so the view can render one of each and let the player choose. Both
+/// were sized by eye to fill the art's bright "clearing" while still
+/// clearing the baked tagline above (bottom sits at top-left y~195) and
+/// the credit/date block below (top starts at top-left y~1044).
+enum WindowShape: CaseIterable {
   case circle
   case roundedRect
 
@@ -61,18 +62,17 @@ private enum CaptionLayout {
     NSFont(name: "Handjet-Medium", size: 32)
     ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .medium)
   static let dateColor = NSColor.white
-  static let dateShadowColor = NSColor.black.withAlphaComponent(0.4)
-  static let dateShadowBlur: CGFloat = 7
-  static let dateCenter = CGPoint(x: 600, y: 99)
+  static let dateCenter = CGPoint(x: 600, y: 65)
   /// A generous box around the baked "YYYY.MM.DD" placeholder (bottom-up).
-  static let datePlaceholderBlurRect = CGRect(x: 520, y: 82, width: 160, height: 33)
+  static let datePlaceholderBlurRect = CGRect(x: 520, y: 48, width: 160, height: 33)
 }
 
 enum ResultPhotoComposer {
   static func make(
     cameraImage: CGImage,
     overlayImage: CGImage?,
-    canvasSize: CGSize
+    canvasSize: CGSize,
+    windowShape: WindowShape
   ) -> NSImage? {
     guard canvasSize.width > 1, canvasSize.height > 1 else { return nil }
 
@@ -96,7 +96,6 @@ enum ResultPhotoComposer {
       context.draw(baseCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
-    let windowShape = WindowShape.allCases.randomElement() ?? .circle
     let windowRect = windowShape.rect
 
     context.saveGState()
@@ -308,12 +307,6 @@ enum ResultPhotoComposer {
   /// "YYYY.MM.DD" placeholder in PhotoFrameSquare.png sits -- see
   /// `CaptionLayout` for why nothing else needs to be drawn here.
   private static func drawDate(context: CGContext) {
-    context.saveGState()
-    context.setShadow(
-      offset: .zero, blur: CaptionLayout.dateShadowBlur,
-      color: CaptionLayout.dateShadowColor.cgColor
-    )
-
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
@@ -334,7 +327,6 @@ enum ResultPhotoComposer {
     )
 
     NSGraphicsContext.restoreGraphicsState()
-    context.restoreGState()
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter

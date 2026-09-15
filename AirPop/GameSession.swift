@@ -14,12 +14,30 @@ final class GameSession: ObservableObject {
   @Published private(set) var bestCombo = 0
   @Published private(set) var handCount = 0
   @Published private(set) var isNewHighScore = false
-  @Published private(set) var resultPhoto: NSImage?
+  /// One rendered result per `WindowShape` (see `ResultPhotoComposer`), so
+  /// the player can pick which frame they like before saving -- populated
+  /// together in `finishRound`, never one at a time.
+  @Published private(set) var resultPhotoOptions: [NSImage] = []
+  @Published private(set) var selectedResultPhotoIndex = 0
   /// Increments once each time a result photo is captured. The view
-  /// observes this (not `resultPhoto` itself, which can also become nil on
-  /// reset) to fire a one-shot flash/shutter effect at the exact capture
-  /// moment.
+  /// observes this (not `resultPhotoOptions` itself, which can also become
+  /// empty on reset) to fire a one-shot flash/shutter effect at the exact
+  /// capture moment.
   @Published private(set) var photoCaptureTrigger = 0
+
+  /// The option the player currently has selected, or nil if capture
+  /// failed (`resultPhotoOptions` empty). `PNG 저장` and the large preview
+  /// both read this rather than indexing `resultPhotoOptions` themselves.
+  var resultPhoto: NSImage? {
+    resultPhotoOptions.indices.contains(selectedResultPhotoIndex)
+      ? resultPhotoOptions[selectedResultPhotoIndex]
+      : nil
+  }
+
+  func selectResultPhoto(at index: Int) {
+    guard resultPhotoOptions.indices.contains(index) else { return }
+    selectedResultPhotoIndex = index
+  }
 
   /// Conditions owned by the camera and the link. The session does not reach
   /// for either of them directly; the view injects what it observes.
@@ -35,9 +53,10 @@ final class GameSession: ObservableObject {
   private var handsFoundSince: Date?
 
   /// Installed by ContentView because the session owns the score and scene,
-  /// while the view owns the camera tracker. The image remains in memory until
-  /// the player explicitly chooses where to save it.
-  var resultPhotoProvider: ((_ score: Int, _ bestCombo: Int) -> NSImage?)?
+  /// while the view owns the camera tracker. Returns one rendered photo per
+  /// `WindowShape`; the images remain in memory until the player explicitly
+  /// chooses where to save one.
+  var resultPhotoProvider: ((_ score: Int, _ bestCombo: Int) -> [NSImage])?
 
   var hasHands: Bool { handCount > 0 }
 
@@ -225,7 +244,8 @@ final class GameSession: ObservableObject {
     combo = 0
     bestCombo = 0
     isNewHighScore = false
-    resultPhoto = nil
+    resultPhotoOptions = []
+    selectedResultPhotoIndex = 0
     handsMissingSince = nil
     handsFoundSince = nil
   }
@@ -236,7 +256,8 @@ final class GameSession: ObservableObject {
     // the countdown (blinking timer, ticking) leads up to this exact
     // moment, so the flash the view fires off `photoCaptureTrigger` lands
     // on the same beat the player was just counted down to.
-    resultPhoto = resultPhotoProvider?(score, bestCombo)
+    resultPhotoOptions = resultPhotoProvider?(score, bestCombo) ?? []
+    selectedResultPhotoIndex = 0
     photoCaptureTrigger += 1
     phase = .result
     AudioManager.shared.play(GameSound.roundOver)
