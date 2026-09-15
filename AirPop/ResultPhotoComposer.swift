@@ -357,9 +357,8 @@ enum ResultPhotoComposer {
   private static func drawEdgeVignette(in rect: CGRect, context: CGContext) {
     let center = CGPoint(x: rect.midX, y: rect.midY)
     let halfWidth = rect.width / 2
-    let halfHeight = rect.height / 2
-    let innerRadius = min(halfWidth, halfHeight) * 0.4
-    let outerRadius = (halfWidth * halfWidth + halfHeight * halfHeight).squareRoot()
+    let innerRadius = halfWidth * 0.35
+    let outerRadius = halfWidth * 1.05
 
     guard
       let gradient = CGGradient(
@@ -372,14 +371,25 @@ enum ResultPhotoComposer {
       )
     else { return }
 
-    // Already inside the window's own clip (circle or rounded rect) from
-    // the caller's scope -- no need to clip again to `rect` itself.
+    // A ceiling/wall line or a phone's own bezel reads as a hard straight
+    // edge specifically where it crosses near the *top or bottom* of the
+    // window -- a plain circular vignette darkened the corners just as
+    // much as the sides, which didn't touch that. Squashing the gradient
+    // vertically before drawing it (a circle drawn in a vertically-scaled
+    // coordinate space renders back out as an ellipse) makes top/bottom
+    // reach full darkness much sooner than left/right.
+    let verticalSquash: CGFloat = 0.5
+
+    context.saveGState()
+    context.translateBy(x: center.x, y: center.y)
+    context.scaleBy(x: 1, y: verticalSquash)
     context.drawRadialGradient(
       gradient,
-      startCenter: center, startRadius: innerRadius,
-      endCenter: center, endRadius: outerRadius,
+      startCenter: .zero, startRadius: innerRadius,
+      endCenter: .zero, endRadius: outerRadius,
       options: [.drawsAfterEndLocation]
     )
+    context.restoreGState()
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter
