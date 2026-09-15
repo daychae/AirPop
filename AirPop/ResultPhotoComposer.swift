@@ -367,7 +367,7 @@ enum ResultPhotoComposer {
         colorsSpace: CGColorSpaceCreateDeviceRGB(),
         colors: [
           NSColor.white.withAlphaComponent(0).cgColor,
-          NSColor.white.withAlphaComponent(0.75).cgColor,
+          NSColor.white.withAlphaComponent(0.075).cgColor,
         ] as CFArray,
         locations: [0, 1]
       )
