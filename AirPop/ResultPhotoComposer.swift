@@ -11,17 +11,41 @@ import CoreImage
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
-  /// A circle (the art's own baked window is one too, just smaller),
-  /// sized to fill the bright "clearing" while still clearing the baked
-  /// tagline above it (bottom sits at top-left y~195) and the credit/date
-  /// block below (top starts at top-left y~1044) -- checked by eye
-  /// against the actual asset, not measured off a spec.
-  static let windowRect = CGRect(x: 190, y: 170, width: 820, height: 820)
-
   /// A hard geometric cut, unlike the art's own baked window whose edge
   /// is already soft -- needs more blur to keep the hand-off from
   /// reading as jagged.
   static let windowEdgeFeather: CGFloat = 16
+}
+
+/// Two window shapes, both kept (picked at random per capture) rather
+/// than settling on one -- both were liked, and neither is baked into
+/// the art (the photo window is always a code-side clip), so there's no
+/// extra asset cost to keeping both. Both were sized by eye to fill the
+/// art's bright "clearing" while still clearing the baked tagline above
+/// (bottom sits at top-left y~195) and the credit/date block below (top
+/// starts at top-left y~1044).
+private enum WindowShape: CaseIterable {
+  case circle
+  case roundedRect
+
+  var rect: CGRect {
+    switch self {
+    case .circle: return CGRect(x: 190, y: 170, width: 820, height: 820)
+    case .roundedRect: return CGRect(x: 150, y: 181, width: 900, height: 799)
+    }
+  }
+
+  private var cornerRadius: CGFloat { 40 }
+
+  func addPath(to context: CGContext) {
+    switch self {
+    case .circle:
+      context.addEllipse(in: rect)
+    case .roundedRect:
+      context.addPath(
+        CGPath(roundedRect: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+    }
+  }
 }
 
 /// The live date is the only part of the caption drawn fresh -- see
@@ -36,11 +60,9 @@ private enum CaptionLayout {
   static let dateFont =
     NSFont(name: "Handjet-Medium", size: 32)
     ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .medium)
-  /// Sampled from the baked credit/placeholder text (RGB 26,191,236) so
-  /// the live date matches exactly rather than approximating by eye.
-  static let dateColor = NSColor(
-    srgbRed: CGFloat(26) / 255, green: CGFloat(191) / 255,
-    blue: CGFloat(236) / 255, alpha: 1)
+  static let dateColor = NSColor.white
+  static let dateShadowColor = NSColor.black.withAlphaComponent(0.4)
+  static let dateShadowBlur: CGFloat = 7
   static let dateCenter = CGPoint(x: 600, y: 99)
   /// A generous box around the baked "YYYY.MM.DD" placeholder (bottom-up).
   static let datePlaceholderBlurRect = CGRect(x: 520, y: 82, width: 160, height: 33)
@@ -74,11 +96,14 @@ enum ResultPhotoComposer {
       context.draw(baseCGImage, in: CGRect(origin: .zero, size: outputSize))
     }
 
+    let windowShape = WindowShape.allCases.randomElement() ?? .circle
+    let windowRect = windowShape.rect
+
     context.saveGState()
-    if let mask = featheredWindowMask(canvasSize: outputSize) {
+    if let mask = featheredWindowMask(canvasSize: outputSize, shape: windowShape) {
       context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
     } else {
-      context.addEllipse(in: FrameLayout.windowRect)
+      windowShape.addPath(to: context)
       context.clip()
     }
 
@@ -99,7 +124,7 @@ enum ResultPhotoComposer {
     // Lightened from 0.16 -- a dim real-world photo read noticeably heavy
     // at the darker tint.
     context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
-    context.fill(FrameLayout.windowRect)
+    context.fill(windowRect)
 
     if let overlayImage {
       // Aspect-fill like the camera layer (and into the same backdrop
@@ -138,7 +163,7 @@ enum ResultPhotoComposer {
   /// channel, not from a grayscale color value -- a mask built the more
   /// obvious way (white-on-black in a context with no alpha channel at
   /// all) is treated as fully opaque everywhere, and clips nothing.
-  private static func featheredWindowMask(canvasSize: CGSize) -> CGImage? {
+  private static func featheredWindowMask(canvasSize: CGSize, shape: WindowShape) -> CGImage? {
     guard
       let maskContext = CGContext(
         data: nil,
@@ -153,7 +178,7 @@ enum ResultPhotoComposer {
     maskContext.setFillColor(gray: 0, alpha: 0)
     maskContext.fill(CGRect(origin: .zero, size: canvasSize))
     maskContext.setFillColor(gray: 0, alpha: 1)
-    maskContext.addEllipse(in: FrameLayout.windowRect)
+    shape.addPath(to: maskContext)
     maskContext.fillPath()
     guard let rawMask = maskContext.makeImage() else { return nil }
 
@@ -283,6 +308,12 @@ enum ResultPhotoComposer {
   /// "YYYY.MM.DD" placeholder in PhotoFrameSquare.png sits -- see
   /// `CaptionLayout` for why nothing else needs to be drawn here.
   private static func drawDate(context: CGContext) {
+    context.saveGState()
+    context.setShadow(
+      offset: .zero, blur: CaptionLayout.dateShadowBlur,
+      color: CaptionLayout.dateShadowColor.cgColor
+    )
+
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
@@ -303,6 +334,7 @@ enum ResultPhotoComposer {
     )
 
     NSGraphicsContext.restoreGraphicsState()
+    context.restoreGState()
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter
