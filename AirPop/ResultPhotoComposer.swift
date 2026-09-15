@@ -62,6 +62,11 @@ private enum CaptionLayout {
     NSFont(name: "Handjet-Medium", size: 32)
     ?? NSFont.monospacedSystemFont(ofSize: 32, weight: .medium)
   static let dateColor = NSColor.white
+  /// Matches the slight shadow baked behind the rest of the caption (see
+  /// the credit/logo sprite) -- enough to lift white text off the frame's
+  /// own pale background without reading as a heavy drop shadow.
+  static let dateShadowColor = NSColor.black.withAlphaComponent(0.3)
+  static let dateShadowBlur: CGFloat = 5
   static let dateCenter = CGPoint(x: 600, y: 65)
   /// A generous box around the baked "YYYY.MM.DD" placeholder (bottom-up).
   static let datePlaceholderBlurRect = CGRect(x: 520, y: 48, width: 160, height: 33)
@@ -307,6 +312,12 @@ enum ResultPhotoComposer {
   /// "YYYY.MM.DD" placeholder in PhotoFrameSquare.png sits -- see
   /// `CaptionLayout` for why nothing else needs to be drawn here.
   private static func drawDate(context: CGContext) {
+    context.saveGState()
+    context.setShadow(
+      offset: .zero, blur: CaptionLayout.dateShadowBlur,
+      color: CaptionLayout.dateShadowColor.cgColor
+    )
+
     let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = graphicsContext
@@ -327,6 +338,7 @@ enum ResultPhotoComposer {
     )
 
     NSGraphicsContext.restoreGraphicsState()
+    context.restoreGState()
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter
