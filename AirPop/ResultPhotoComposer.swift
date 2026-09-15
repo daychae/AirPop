@@ -130,6 +130,14 @@ enum ResultPhotoComposer {
     context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
     context.fill(windowRect)
 
+    // A real room behind the subject often has its own hard edges (a wall/
+    // ceiling line, a phone in hand) that read as a distracting straight
+    // border cutting across the round window -- nothing to composite away
+    // since it's live camera content, not frame art. Darkening toward the
+    // window's edge fades those peripheral details out instead, the same
+    // way a portrait vignette pulls focus to the center.
+    drawEdgeVignette(in: windowRect, context: context)
+
     if let overlayImage {
       // Aspect-fill like the camera layer (and into the same backdrop
       // rect, so bubbles stay aligned to where they were actually popped
@@ -339,6 +347,39 @@ enum ResultPhotoComposer {
 
     NSGraphicsContext.restoreGraphicsState()
     context.restoreGState()
+  }
+
+  /// A radial darkening from the window's center out to its edge/corners,
+  /// on top of the flat dim tint above. Clear in the middle (where a
+  /// subject's face or hands usually land) and noticeably darker at the
+  /// rim, so peripheral background detail -- and any hard edges in it --
+  /// fades rather than competing with the frame.
+  private static func drawEdgeVignette(in rect: CGRect, context: CGContext) {
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    let halfWidth = rect.width / 2
+    let halfHeight = rect.height / 2
+    let innerRadius = min(halfWidth, halfHeight) * 0.4
+    let outerRadius = (halfWidth * halfWidth + halfHeight * halfHeight).squareRoot()
+
+    guard
+      let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [
+          NSColor.black.withAlphaComponent(0).cgColor,
+          NSColor.black.withAlphaComponent(0.42).cgColor,
+        ] as CFArray,
+        locations: [0, 1]
+      )
+    else { return }
+
+    // Already inside the window's own clip (circle or rounded rect) from
+    // the caller's scope -- no need to clip again to `rect` itself.
+    context.drawRadialGradient(
+      gradient,
+      startCenter: center, startRadius: innerRadius,
+      endCenter: center, endRadius: outerRadius,
+      options: [.drawsAfterEndLocation]
+    )
   }
 
   /// Aspect-fill crops symmetrically by default, but the window is shorter
