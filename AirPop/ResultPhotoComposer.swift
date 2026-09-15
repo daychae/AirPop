@@ -349,9 +349,11 @@ enum ResultPhotoComposer {
     context.restoreGState()
   }
 
-  /// A radial darkening from the window's center out to its edge/corners,
-  /// on top of the flat dim tint above. Clear in the middle (where a
-  /// subject's face or hands usually land) and noticeably darker at the
+  /// A radial *lightening* (not darkening -- a soft dreamy glow fits this
+  /// frosted-glass bubble aesthetic better than a moody dark vignette, and
+  /// blows out peripheral detail just as effectively) from the window's
+  /// center out to its edge/corners. Clear in the middle (where a
+  /// subject's face or hands usually land) and noticeably brighter at the
   /// rim, so peripheral background detail -- and any hard edges in it --
   /// fades rather than competing with the frame.
   private static func drawEdgeVignette(in rect: CGRect, context: CGContext) {
@@ -364,8 +366,8 @@ enum ResultPhotoComposer {
       let gradient = CGGradient(
         colorsSpace: CGColorSpaceCreateDeviceRGB(),
         colors: [
-          NSColor.black.withAlphaComponent(0).cgColor,
-          NSColor.black.withAlphaComponent(0.42).cgColor,
+          NSColor.white.withAlphaComponent(0).cgColor,
+          NSColor.white.withAlphaComponent(0.75).cgColor,
         ] as CFArray,
         locations: [0, 1]
       )
