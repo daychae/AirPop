@@ -91,9 +91,17 @@ enum ResultPhotoComposer {
       context.clip()
     }
 
+    // Scaled to match the *canvas's* height, not the window's -- the photo
+    // is a backdrop the frame sits on top of, not an image tailored to
+    // the window's own box, so the window (whatever shape/size it is)
+    // reads as a viewport onto one consistent backdrop rather than each
+    // capture rescaling the photo to exactly fill wherever the window
+    // happens to be.
+    let photoBackdropRect = CGRect(origin: .zero, size: outputSize)
+
     drawMirroredAspectFill(
       cameraImage,
-      in: FrameLayout.windowRect,
+      in: photoBackdropRect,
       context: context
     )
 
@@ -103,13 +111,15 @@ enum ResultPhotoComposer {
     context.fill(FrameLayout.windowRect)
 
     if let overlayImage {
-      // Aspect-fill like the camera layer, not a plain stretch-to-rect draw:
-      // the SpriteKit scene's aspect ratio (scene.size, i.e. `canvasSize`)
-      // matches the on-screen game window, not the frame's window, so
-      // drawing it straight into `windowRect` would squash it. The bubbles
-      // it draws are the only game content that belongs in the photo -- no
-      // score/combo text.
-      drawAspectFill(overlayImage, in: FrameLayout.windowRect, context: context)
+      // Aspect-fill like the camera layer (and into the same backdrop
+      // rect, so bubbles stay aligned to where they were actually popped
+      // relative to the photo): the SpriteKit scene's aspect ratio
+      // (scene.size, i.e. `canvasSize`) matches the on-screen game
+      // window, not this frame's canvas, so drawing it at any other
+      // scale would shift bubbles away from the photo content they
+      // belong over. The bubbles it draws are the only game content that
+      // belongs in the photo -- no score/combo text.
+      drawAspectFill(overlayImage, in: photoBackdropRect, context: context)
     }
 
     context.restoreGState()
