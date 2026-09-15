@@ -130,14 +130,6 @@ enum ResultPhotoComposer {
     context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
     context.fill(windowRect)
 
-    // A real room behind the subject often has its own hard edges (a wall/
-    // ceiling line, a phone in hand) that read as a distracting straight
-    // border cutting across the round window -- nothing to composite away
-    // since it's live camera content, not frame art. Darkening toward the
-    // window's edge fades those peripheral details out instead, the same
-    // way a portrait vignette pulls focus to the center.
-    drawEdgeVignette(in: windowRect, context: context)
-
     if let overlayImage {
       // Aspect-fill like the camera layer (and into the same backdrop
       // rect, so bubbles stay aligned to where they were actually popped
@@ -346,51 +338,6 @@ enum ResultPhotoComposer {
     )
 
     NSGraphicsContext.restoreGraphicsState()
-    context.restoreGState()
-  }
-
-  /// A radial *lightening* (not darkening -- a soft dreamy glow fits this
-  /// frosted-glass bubble aesthetic better than a moody dark vignette, and
-  /// blows out peripheral detail just as effectively) from the window's
-  /// center out to its edge/corners. Clear in the middle (where a
-  /// subject's face or hands usually land) and noticeably brighter at the
-  /// rim, so peripheral background detail -- and any hard edges in it --
-  /// fades rather than competing with the frame.
-  private static func drawEdgeVignette(in rect: CGRect, context: CGContext) {
-    let center = CGPoint(x: rect.midX, y: rect.midY)
-    let halfWidth = rect.width / 2
-    let innerRadius = halfWidth * 0.35
-    let outerRadius = halfWidth * 1.05
-
-    guard
-      let gradient = CGGradient(
-        colorsSpace: CGColorSpaceCreateDeviceRGB(),
-        colors: [
-          NSColor.white.withAlphaComponent(0).cgColor,
-          NSColor.white.withAlphaComponent(0.075).cgColor,
-        ] as CFArray,
-        locations: [0, 1]
-      )
-    else { return }
-
-    // A ceiling/wall line or a phone's own bezel reads as a hard straight
-    // edge specifically where it crosses near the *top or bottom* of the
-    // window -- a plain circular vignette darkened the corners just as
-    // much as the sides, which didn't touch that. Squashing the gradient
-    // vertically before drawing it (a circle drawn in a vertically-scaled
-    // coordinate space renders back out as an ellipse) makes top/bottom
-    // reach full darkness much sooner than left/right.
-    let verticalSquash: CGFloat = 0.5
-
-    context.saveGState()
-    context.translateBy(x: center.x, y: center.y)
-    context.scaleBy(x: 1, y: verticalSquash)
-    context.drawRadialGradient(
-      gradient,
-      startCenter: .zero, startRadius: innerRadius,
-      endCenter: .zero, endRadius: outerRadius,
-      options: [.drawsAfterEndLocation]
-    )
     context.restoreGState()
   }
 
