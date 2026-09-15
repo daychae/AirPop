@@ -11,13 +11,13 @@ import CoreImage
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
-  /// The photo window, picked to fill the art's bright "clearing" (which
-  /// moved down and re-centered in the handoff-7 background compared to
-  /// the version this was first tuned against) while still clearing the
-  /// baked tagline above it (bottom sits at top-left y~195) and leaving
-  /// generous room below for the credit/date block (top-left y~1044) --
-  /// checked by eye against the actual asset, not measured off a spec.
-  static let windowRect = CGRect(x: 150, y: 315, width: 900, height: 520)
+  /// The photo window, sized to fill nearly the whole bright "clearing" in
+  /// the art (the photo itself is the point of this screen, not the frame
+  /// around it) while still clearing the baked tagline above it (bottom
+  /// sits at top-left y~195) and the credit/date block below (top starts
+  /// at top-left y~1044) -- checked by eye against the actual asset, not
+  /// measured off a spec.
+  static let windowRect = CGRect(x: 150, y: 181, width: 900, height: 799)
   static let windowCornerRadius: CGFloat = 40
 
   /// A hard geometric rounded-rect cut, unlike the oval used elsewhere in
