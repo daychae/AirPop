@@ -11,18 +11,16 @@ import CoreImage
 private enum FrameLayout {
   static let canvasSize = CGSize(width: 1200, height: 1200)
 
-  /// The photo window, sized to fill nearly the whole bright "clearing" in
-  /// the art (the photo itself is the point of this screen, not the frame
-  /// around it) while still clearing the baked tagline above it (bottom
-  /// sits at top-left y~195) and the credit/date block below (top starts
-  /// at top-left y~1044) -- checked by eye against the actual asset, not
-  /// measured off a spec.
-  static let windowRect = CGRect(x: 150, y: 181, width: 900, height: 799)
-  static let windowCornerRadius: CGFloat = 40
+  /// A circle (the art's own baked window is one too, just smaller),
+  /// sized to fill the bright "clearing" while still clearing the baked
+  /// tagline above it (bottom sits at top-left y~195) and the credit/date
+  /// block below (top starts at top-left y~1044) -- checked by eye
+  /// against the actual asset, not measured off a spec.
+  static let windowRect = CGRect(x: 190, y: 170, width: 820, height: 820)
 
-  /// A hard geometric rounded-rect cut, unlike the oval used elsewhere in
-  /// this app whose edge in the art is already soft -- needs more blur to
-  /// keep the hand-off from reading as jagged.
+  /// A hard geometric cut, unlike the art's own baked window whose edge
+  /// is already soft -- needs more blur to keep the hand-off from
+  /// reading as jagged.
   static let windowEdgeFeather: CGFloat = 16
 }
 
@@ -80,14 +78,7 @@ enum ResultPhotoComposer {
     if let mask = featheredWindowMask(canvasSize: outputSize) {
       context.clip(to: CGRect(origin: .zero, size: outputSize), mask: mask)
     } else {
-      context.addPath(
-        CGPath(
-          roundedRect: FrameLayout.windowRect,
-          cornerWidth: FrameLayout.windowCornerRadius,
-          cornerHeight: FrameLayout.windowCornerRadius,
-          transform: nil
-        )
-      )
+      context.addEllipse(in: FrameLayout.windowRect)
       context.clip()
     }
 
@@ -162,14 +153,7 @@ enum ResultPhotoComposer {
     maskContext.setFillColor(gray: 0, alpha: 0)
     maskContext.fill(CGRect(origin: .zero, size: canvasSize))
     maskContext.setFillColor(gray: 0, alpha: 1)
-    maskContext.addPath(
-      CGPath(
-        roundedRect: FrameLayout.windowRect,
-        cornerWidth: FrameLayout.windowCornerRadius,
-        cornerHeight: FrameLayout.windowCornerRadius,
-        transform: nil
-      )
-    )
+    maskContext.addEllipse(in: FrameLayout.windowRect)
     maskContext.fillPath()
     guard let rawMask = maskContext.makeImage() else { return nil }
 
