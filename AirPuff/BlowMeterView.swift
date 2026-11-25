@@ -92,6 +92,9 @@ struct BlowMeterView: View {
       }
       connection.start()
       detector.requestPermissionAndStart()
+      // Players blow without touching the screen, so auto-lock would kick in
+      // mid-round, send the app to the background and drop the link.
+      UIApplication.shared.isIdleTimerDisabled = true
     }
     .onChange(of: detector.isReadyForPlay) { _, ready in
       connection.sendStatus(micReady: ready)
@@ -101,6 +104,7 @@ struct BlowMeterView: View {
       if connected { connection.sendStatus(micReady: detector.isReadyForPlay) }
     }
     .onDisappear {
+      UIApplication.shared.isIdleTimerDisabled = false
       connection.stop()
       detector.stopMonitoring()
     }
