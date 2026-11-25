@@ -50,6 +50,99 @@ AirPuff discovers the Mac automatically through the `_airpop._tcp` Bonjour
 service. A managed school or company network may block direct device-to-device
 traffic even when both devices use the same Wi-Fi.
 
+## Setting up on a new Mac or iPhone
+
+The project builds on a fresh machine without any local paths: every file
+reference is relative to the repository, and both schemes (`AirPop` and
+`AirPuff`) are shared, so they appear as soon as the project is opened. What
+does not travel with the repository is code signing and a few one-time device
+settings.
+
+**Signing (Xcode, once per Apple ID)**
+
+1. Sign in under **Xcode > Settings > Accounts**.
+2. Both targets are pinned to development team `489Y33LB79`. If you build
+   with a different Apple ID, select each target, open **Signing &
+   Capabilities**, and pick your own team.
+3. The bundle identifiers are `com.example.AirPop` and `com.example.AirPuff`.
+   With a different team, Xcode usually refuses these because they are already
+   registered elsewhere. Change them to something unique, such as
+   `com.<yourname>.AirPop` and `com.<yourname>.AirPuff`. The two apps find each
+   other through Bonjour, not through their bundle identifiers, so nothing
+   else needs to change.
+
+**iPhone (once per phone)**
+
+1. Turn on **Settings > Privacy & Security > Developer Mode** and restart the
+   phone (iOS 16 and later; the option appears after the phone has been
+   connected to Xcode once).
+2. With a free Apple ID, trust the developer certificate under **Settings >
+   General > VPN & Device Management** before AirPuff will open. Free-account
+   builds expire after 7 days and need to be run from Xcode again.
+3. Allow **Microphone** and **Local Network** when AirPuff asks. If Local
+   Network was declined, AirPuff now says so; turn it back on under
+   **Settings > Privacy & Security > Local Network**.
+
+**Mac (once per Mac)**
+
+1. Allow **Camera** when AirPop asks. If it was declined, turn it on under
+   **System Settings > Privacy & Security > Camera**.
+2. On macOS 15 and later, also allow **Local Network**
+   (**System Settings > Privacy & Security > Local Network**). Without it the
+   iPhone cannot see the game.
+3. If the macOS firewall is on with "Block all incoming connections", AirPuff
+   cannot connect. Allow incoming connections for AirPop instead.
+
+**Before a demo**
+
+- Put both devices on the same network, ideally a phone hotspot or a home
+  router you control. School, venue and guest Wi-Fi often isolate clients or
+  block Bonjour.
+- If AirPuff keeps searching, use **Direct connect** with the address and port
+  shown on the Mac (port 51888 unless something else held it).
+- A USB cable between the iPhone and the Mac also works: the link is not tied
+  to Wi-Fi.
+
+## Connection reliability
+
+What the link already does:
+
+- TCP keepalive probes every second after 2 seconds of silence, so a phone or
+  Mac that vanishes without closing the connection is noticed in about
+  4 seconds instead of minutes.
+- Every connection starts a fresh session, so a reconnect never replays old
+  input.
+- The phone requests an acknowledgement once a second and marks the Mac as
+  not responding after 2.5 seconds without one.
+
+What changed after the fresh-device audit:
+
+- **Reconnects after the Mac closes the link.** Previously, if the Mac app was
+  restarted or the TCP connection ended while the Mac kept advertising,
+  AirPuff stayed on "searching" until it was relaunched, because the Bonjour
+  results never changed. It now reconnects within about a second, and
+  direct-connect mode retries the typed address the same way.
+- **Retries a refused connection.** Opening AirPuff before the Mac game, or
+  typing an address with nothing listening yet, used to leave the connection
+  waiting for a network change that might never come. It now retries every
+  second.
+- **Ignores events from replaced connections.** Pressing restart, switching
+  to direct connect, or a quick reconnect could let the old connection's
+  late "cancelled" event tear down the new session.
+- **Restarts the Mac listener after a failure.** If the listener failed after
+  its fallback port (for example after sleep or a Wi-Fi change), the game
+  stayed unreachable until relaunch. It now tries again after 2 seconds.
+- **Keeps the iPhone screen awake.** Players blow without touching the
+  phone, so auto-lock used to send AirPuff to the background mid-round and
+  drop the link. AirPuff now disables auto-lock while it is open.
+
+Known limits:
+
+- One phone at a time. A second phone takes over the session, and the first
+  one will then reconnect and take it back, so keep only one AirPuff open.
+- AirPuff still disconnects if it is sent to the background (switching apps or
+  pressing the side button). It reconnects when reopened.
+
 ## Data sent over the network
 
 AirPuff does not transmit microphone audio. Messages are newline-delimited

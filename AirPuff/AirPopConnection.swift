@@ -421,9 +421,9 @@ final class AirPopConnection: ObservableObject {
         publish { $0.state = .searching }
       }
     case .waiting(let error):
-      publish { $0.state = .failed(error.localizedDescription) }
+      publish { $0.state = .failed(Self.describe(error)) }
     case .failed(let error):
-      publish { $0.state = .failed(error.localizedDescription) }
+      publish { $0.state = .failed(Self.describe(error)) }
       browser?.cancel()
       browser = nil
       scheduleReconnect { [weak self] in self?.startBrowser() }
@@ -459,41 +459,82 @@ final class AirPopConnection: ObservableObject {
     let name = Self.displayName(for: endpoint)
     publish { $0.state = .connecting(name) }
 
-    connection.stateUpdateHandler = { [weak self] state in
-      self?.handleConnectionState(state, name: name)
+    connection.stateUpdateHandler = { [weak self, weak connection] state in
+      guard let self, let connection else { return }
+      self.handleConnectionState(state, of: connection, name: name)
     }
     self.connection = connection
     connection.start(queue: queue)
   }
 
-  private func handleConnectionState(_ state: NWConnection.State, name: String) {
+  private func handleConnectionState(
+    _ state: NWConnection.State,
+    of source: NWConnection,
+    name: String
+  ) {
+    // A replaced or cancelled connection keeps reporting state after the
+    // phone has moved on: `restart()`, a manual address, or a reconnect all
+    // cancel the old one and start a new one straight away. Without this
+    // check, the old connection's `.cancelled` tears down the new session.
+    guard source === connection else { return }
+
     switch state {
     case .ready:
       beginSession(name: name)
       receiveNext()
 
     case .waiting(let error):
-      publish { $0.state = .failed(error.localizedDescription) }
+      // A refused connection (Mac app not open yet, or a typed address with
+      // nothing listening) parks here until the network path changes, which
+      // on a stable Wi-Fi may be never. Retry it on our own schedule.
+      publish { $0.state = .failed(Self.describe(error)) }
+      scheduleReconnect { [weak self] in
+        guard let self, self.connection === source, case .waiting = source.state
+        else { return }
+        source.restart()
+      }
 
     case .failed(let error):
-      publish { $0.state = .failed(error.localizedDescription) }
-      connection?.cancel()
-      connection = nil
-      resetSendState()
-      scheduleReconnect { [weak self] in
-        guard let self, let endpoint = self.connectionEndpoint else { return }
-        self.connect(to: endpoint)
-      }
+      publish { $0.state = .failed(Self.describe(error)) }
+      dropConnection(source)
 
     case .cancelled:
-      if isRunning, connection != nil {
-        connection = nil
-        resetSendState()
+      // The Mac closed the link (quit, restarted its listener, or another
+      // phone took over), or `receiveNext` saw the stream end.
+      if isRunning {
         publish { $0.state = .searching }
       }
+      dropConnection(source)
 
     default:
       break
+    }
+  }
+
+  /// Forgets a dead connection and finds the Mac again. Waiting for the
+  /// browser to report a change is not enough: when only the TCP link dropped,
+  /// the Mac is still advertising, the results never change, and the phone
+  /// would sit on "searching" forever.
+  private func dropConnection(_ source: NWConnection) {
+    guard source === connection else { return }
+    source.cancel()
+    connection = nil
+    resetSendState()
+    publish {
+      $0.sessionShortID = nil
+      $0.remotePhase = nil
+      $0.remoteCountdown = nil
+    }
+
+    scheduleReconnect { [weak self] in
+      guard let self, self.connection == nil else { return }
+      if let manualEndpoint = self.manualEndpoint {
+        self.connect(to: manualEndpoint)
+      } else if let browser = self.browser {
+        self.handle(results: browser.browseResults)
+      } else {
+        self.startBrowser()
+      }
     }
   }
 
@@ -654,6 +695,17 @@ final class AirPopConnection: ObservableObject {
     reconnectTimer?.cancel()
     reconnectTimer = nil
     diagnosticsMode = false
+  }
+
+  /// On a fresh install the most common failure is a declined (or never
+  /// shown) Local Network prompt, which Bonjour reports only as a bare DNS
+  /// error code. Say what to do about it instead.
+  private static func describe(_ error: NWError) -> String {
+    // kDNSServiceErr_PolicyDenied: Local Network access is off for AirPuff.
+    if case .dns(let code) = error, code == -65570 {
+      return "로컬 네트워크 권한이 꺼져 있습니다. 설정 > 개인정보 보호 및 보안 > 로컬 네트워크에서 AirPuff를 켜 주세요."
+    }
+    return error.localizedDescription
   }
 
   private static func displayName(for endpoint: NWEndpoint) -> String {

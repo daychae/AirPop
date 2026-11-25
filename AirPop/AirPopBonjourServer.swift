@@ -203,6 +203,14 @@ final class AirPopBonjourServer: ObservableObject {
         startListener(onPreferredPort: false)
       } else {
         publish { $0.linkState = .failed(error.localizedDescription) }
+        // A listener can also fail later, when the Mac sleeps or Wi-Fi drops
+        // and comes back. Without a retry the game stays unreachable until it
+        // is relaunched, so try the preferred port again shortly.
+        queue.asyncAfter(deadline: .now() + 2) { [weak self] in
+          guard let self, self.listener == nil, self.staleTimer != nil else { return }
+          self.didFallBackToAutomaticPort = false
+          self.startListener(onPreferredPort: true)
+        }
       }
 
     case .cancelled:
